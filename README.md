@@ -92,6 +92,31 @@ See [docs/components.md](docs/components.md) for the shared component catalog,
 including prop tables, usage examples, and accessibility notes for the
 primitives in `src/components`.
 
+## Route map (frontend)
+
+| Path | Source |
+|------|--------|
+| `/` | `src/app/page.tsx` |
+| `/about` | `src/app/about/page.tsx` |
+| `/admin` | `src/app/admin/page.tsx` |
+| `/agents` | `src/app/agents/page.tsx` |
+| `/agents/:agent` | `src/app/agents/[agent]/page.tsx` |
+| `/api-keys` | `src/app/api-keys/page.tsx` |
+| `/changelog` | `src/app/changelog/page.tsx` |
+| `/docs` | `src/app/docs/page.tsx` |
+| `/events` | `src/app/events/page.tsx` |
+| `/export` | `src/app/export/page.tsx` |
+| `/search` | `src/app/search/page.tsx` |
+| `/services` | `src/app/services/page.tsx` |
+| `/services/:serviceId` | `src/app/services/[serviceId]/page.tsx` |
+| `/services/:serviceId/agents` | `src/app/services/[serviceId]/agents/page.tsx` |
+| `/services/:serviceId/edit` | `src/app/services/[serviceId]/edit/page.tsx` |
+| `/services/new` | `src/app/services/new/page.tsx` |
+| `/settings` | `src/app/settings/page.tsx` |
+| `/stats` | `src/app/stats/page.tsx` |
+| `/usage` | `src/app/usage/page.tsx` |
+| `/webhooks` | `src/app/webhooks/page.tsx` |
+
 ## Environment variables
 
 | Variable | Visibility | Default | Purpose |
@@ -144,7 +169,7 @@ The `/services` page now uses server-driven pagination with the shared `Spinner`
 | Command | Description |
 |--------|-------------|
 | `npm run build` | Production build |
-| `npm test` | Run Jest tests |
+| `npm run test` | Run Jest tests |
 | `npm run test:coverage` | Run Jest with coverage | (not defined in this repo snapshot)
 | `npm run dev` | Development server |
 | `npm run lint` | Run ESLint |

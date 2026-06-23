@@ -1,14 +1,9 @@
-import type { ApiError } from "../apiClient";
 import {
-  ApiError,
   ApiTimeoutError,
-  apiDelete,
   apiFetch,
   apiGet,
-  apiPatch,
-  apiPost,
 } from "../apiClient";
-import { resolveApiBase } from "../resolveApiBase";
+import type { ApiError } from "../apiClient";
 
 type ApiClientModule = typeof import("../apiClient");
 
@@ -51,11 +46,16 @@ async function loadApiClient(
 describe("apiClient", () => {
   let originalFetch: typeof globalThis.fetch;
 
+  function mockFetch(handler: jest.Mock | typeof globalThis.fetch) {
+    globalThis.fetch = handler as unknown as typeof globalThis.fetch;
+  }
+
   beforeEach(() => {
     originalFetch = globalThis.fetch;
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     globalThis.fetch = originalFetch;
     jest.resetModules();
   });
@@ -148,9 +148,6 @@ describe("apiClient", () => {
 
     const { apiDelete } = await loadApiClient();
     await expect(apiDelete("/api/v1/things/1")).resolves.toBeUndefined();
-  afterEach(() => {
-    jest.useRealTimers();
-    global.fetch = originalFetch;
   });
 
   it("unwraps ApiError fields onto the thrown Error instance", async () => {

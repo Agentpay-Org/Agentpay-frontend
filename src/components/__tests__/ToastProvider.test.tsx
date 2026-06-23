@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ToastProvider, useToast } from "../ToastProvider";
 
@@ -287,11 +288,16 @@ describe("ToastProvider", () => {
   // ------------------------------------------------------------------
   describe("context value", () => {
     it("exposes a stable push function across re-renders", () => {
-      const ref: { current: ((m: string) => void) | null } = { current: null };
+      let observedPush: ((m: string) => void) | null = null;
+      const recordPush = (push: (m: string) => void) => {
+        observedPush = push;
+      };
 
       function Spy() {
         const { push } = useToast();
-        ref.current = push;
+        useEffect(() => {
+          recordPush(push);
+        }, [push]);
         return null;
       }
 
@@ -301,13 +307,13 @@ describe("ToastProvider", () => {
         </ToastProvider>,
       );
 
-      const firstPush = ref.current;
+      const firstPush = observedPush;
       rerender(
         <ToastProvider>
           <Spy />
         </ToastProvider>,
       );
-      expect(ref.current).toBe(firstPush);
+      expect(observedPush).toBe(firstPush);
     });
   });
 });

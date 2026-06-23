@@ -40,6 +40,19 @@ describe("ChangelogPage", () => {
     expect(screen.getByText("Added usage exports")).toBeInTheDocument();
   });
 
+  it("renders an empty state when no entries are returned", async () => {
+    mockApiGet.mockResolvedValue({ entries: [] });
+
+    render(<ChangelogPage />);
+
+    expect(await screen.findByText("No changelog entries yet"))
+      .toBeInTheDocument();
+    expect(screen.getByText(
+      "New release notes will appear here when they are published.",
+    )).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
   it("renders API errors as alerts", async () => {
     mockApiGet.mockRejectedValue(new Error("failed to load changelog"));
 

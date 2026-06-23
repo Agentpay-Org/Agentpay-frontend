@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { Spinner } from "@/components/Spinner";
 import { useApi } from "@/lib/useApi";
 
@@ -22,7 +23,13 @@ export default function ChangelogPage() {
           {state.error}
         </p>
       )}
-      {entries && (
+      {entries?.length === 0 && (
+        <EmptyState
+          title="No changelog entries yet"
+          description="New release notes will appear here when they are published."
+        />
+      )}
+      {entries && entries.length > 0 && (
         <ol className="flex flex-col gap-6">
           {entries.map((e) => (
             <li key={e.version} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">

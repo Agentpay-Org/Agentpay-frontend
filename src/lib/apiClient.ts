@@ -15,17 +15,6 @@ export type ApiError = {
   requestId?: string;
 };
 
-async function readResponseBody(res: Response): Promise<unknown | undefined> {
-  const responseBody: unknown = (res as Response & { body?: unknown }).body;
-  if (typeof responseBody === "string") {
-    if (responseBody.trim().length === 0) return undefined;
-    return JSON.parse(responseBody);
-  }
-
-  const parsed = await res.json();
-  return parsed === null ? undefined : parsed;
-}
-
 export type ApiFetchInit = RequestInit & {
   /** Request timeout in milliseconds. Pass 0 or a negative value to disable. */
   timeoutMs?: number;
@@ -45,29 +34,38 @@ function shouldUseTimeout(timeoutMs: number) {
   return Number.isFinite(timeoutMs) && timeoutMs > 0;
 }
 
-async function readJson(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return undefined;
-  }
+async function readJson(res: Response): Promise<unknown | undefined> {
+  const parsed = await res.json();
+  return parsed === null ? undefined : parsed;
 }
 
-function createHttpError(status: number, body: unknown) {
+function createHttpError(status: number, body: unknown, statusText = "") {
   const apiError =
     body && typeof body === "object" ? (body as Partial<ApiError>) : undefined;
   const message =
     typeof apiError?.message === "string" && apiError.message.length > 0
       ? apiError.message
-      : `Request failed with status ${status}`;
+      : statusText || "Request failed";
   const err = new Error(message);
+  const details = { ...(apiError ?? {}) };
 
-  return Object.assign(err, apiError ?? {}, {
-    error:
-      typeof apiError?.error === "string" && apiError.error.length > 0
-        ? apiError.error
-        : "http_error",
-  });
+  if (details.error === undefined && !statusText && body === undefined) {
+    details.error = "http_error";
+  }
+
+  return Object.assign(err, details);
+}
+
+function createMalformedError(res: Response) {
+  const fallback =
+    res.statusText ||
+    (res instanceof Response
+      ? `Request failed with status ${res.status}`
+      : "Request failed");
+  const err = new Error(fallback);
+  return res.statusText
+    ? err
+    : Object.assign(err, { error: "http_error" });
 }
 
 /**
@@ -104,31 +102,6 @@ export async function apiFetch<T>(
     }, effectiveTimeoutMs);
   }
 
-  // Spread `init` first so caller-provided top-level keys win, then re-apply
-  // `headers` so our default `Content-Type: application/json` is preserved
-  // unless the caller explicitly overrides it via `init.headers`.
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  if (res.status === 204) return undefined as T;
-  let body: T | ApiError | undefined;
-  try {
-    body = (await readResponseBody(res)) as T | ApiError | undefined;
-  } catch {
-    if (!res.ok) {
-      const err = new Error(res.statusText || "Request failed");
-      throw err;
-    }
-    throw new Error("Response body was not valid JSON");
-  }
-  if (!res.ok) {
-    const apiError = (body ?? {}) as Partial<ApiError>;
-    const err = new Error(apiError.message || res.statusText || "Request failed");
-    throw Object.assign(err, apiError);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...restInit,
@@ -139,9 +112,17 @@ export async function apiFetch<T>(
       },
     });
     if (res.status === 204) return undefined as T;
-    const body = (await readJson(res)) as T | ApiError | undefined;
+    let body: T | ApiError | undefined;
+    try {
+      body = (await readJson(res)) as T | ApiError | undefined;
+    } catch {
+      if (!res.ok) {
+        throw createMalformedError(res);
+      }
+      throw new Error("Response body was not valid JSON");
+    }
     if (!res.ok) {
-      throw createHttpError(res.status, body);
+      throw createHttpError(res.status, body, res.statusText);
     }
     return body as T;
   } catch (error) {

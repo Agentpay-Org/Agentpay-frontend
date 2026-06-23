@@ -1,14 +1,9 @@
-import type { ApiError } from "../apiClient";
 import {
-  ApiError,
   ApiTimeoutError,
-  apiDelete,
   apiFetch,
   apiGet,
-  apiPatch,
-  apiPost,
 } from "../apiClient";
-import { resolveApiBase } from "../resolveApiBase";
+import type { ApiError } from "../apiClient";
 
 type ApiClientModule = typeof import("../apiClient");
 
@@ -51,6 +46,10 @@ async function loadApiClient(
 describe("apiClient", () => {
   let originalFetch: typeof globalThis.fetch;
 
+  function mockFetch(handler: jest.Mock | typeof globalThis.fetch) {
+    globalThis.fetch = handler as unknown as typeof globalThis.fetch;
+  }
+
   beforeEach(() => {
     originalFetch = globalThis.fetch;
   });
@@ -69,7 +68,7 @@ describe("apiClient", () => {
       );
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     await expect(apiGet<{ ok: boolean }>("/api/v1/things")).resolves.toEqual({ ok: true });
@@ -81,7 +80,7 @@ describe("apiClient", () => {
       expect(url).toBe("https://api.example.com/v1/health");
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient({
       NEXT_PUBLIC_AGENTPAY_API_BASE: "https://api.example.com/v1/",
@@ -95,7 +94,7 @@ describe("apiClient", () => {
       expect(init?.body).toBe(JSON.stringify({ hello: "world" }));
       return new Response(JSON.stringify({ created: true }), { status: 200 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiPost } = await loadApiClient();
     await expect(apiPost<{ created: boolean }>("/api/v1/things", { hello: "world" })).resolves.toEqual(
@@ -109,7 +108,7 @@ describe("apiClient", () => {
       expect(init?.body).toBe(JSON.stringify({ enabled: true }));
       return new Response(JSON.stringify({ updated: true }), { status: 200 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiPatch } = await loadApiClient();
     await expect(apiPatch<{ updated: boolean }>("/api/v1/things/1", { enabled: true })).resolves.toEqual(
@@ -125,7 +124,7 @@ describe("apiClient", () => {
       expect(headers["X-Request-Id"]).toBe("req-123");
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiFetch } = await loadApiClient();
     await expect(
@@ -144,10 +143,12 @@ describe("apiClient", () => {
       expect(init?.method).toBe("DELETE");
       return new Response(null, { status: 204 });
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiDelete } = await loadApiClient();
     await expect(apiDelete("/api/v1/things/1")).resolves.toBeUndefined();
+  });
+
   afterEach(() => {
     jest.useRealTimers();
     global.fetch = originalFetch;
@@ -164,7 +165,7 @@ describe("apiClient", () => {
         { status: 400, statusText: "Bad Request" }
       )
     );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch((err) => err)) as Error &
@@ -182,7 +183,7 @@ describe("apiClient", () => {
     const fetchMock = jest.fn(async () =>
       new Response(null, { status: 500, statusText: "Internal Server Error" })
     );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch((err) => err)) as Error &
@@ -201,7 +202,7 @@ describe("apiClient", () => {
       statusText: "OK",
       json: async () => null,
     }));
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     await expect(apiGet("/api/v1/things/1")).resolves.toBeUndefined();
@@ -216,7 +217,7 @@ describe("apiClient", () => {
         throw new Error("unexpected token");
       },
     }));
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     await expect(apiGet("/api/v1/things/1")).rejects.toThrow(
@@ -233,7 +234,7 @@ describe("apiClient", () => {
         throw new Error("unexpected token");
       },
     }));
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    mockFetch(fetchMock);
 
     const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch((err) => err)) as Error &

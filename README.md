@@ -92,6 +92,31 @@ See [docs/components.md](docs/components.md) for the shared component catalog,
 including prop tables, usage examples, and accessibility notes for the
 primitives in `src/components`.
 
+## Route map (frontend)
+
+| Path | Page |
+|------|------|
+| `/` | Home |
+| `/about` | About |
+| `/admin` | Admin |
+| `/agents` | Agents |
+| `/agents/:agent` | Agent detail |
+| `/api-keys` | API keys |
+| `/changelog` | Changelog |
+| `/docs` | Documentation |
+| `/events` | Event log |
+| `/export` | Export |
+| `/search` | Search |
+| `/services` | Services |
+| `/services/:serviceId` | Service detail |
+| `/services/:serviceId/agents` | Service agents |
+| `/services/:serviceId/edit` | Edit service |
+| `/services/new` | New service |
+| `/settings` | Settings |
+| `/stats` | Stats |
+| `/usage` | Usage metering |
+| `/webhooks` | Webhooks |
+
 ## Environment variables
 
 | Variable | Visibility | Default | Purpose |
@@ -138,6 +163,10 @@ The `/services` page now uses server-driven pagination with the shared `Spinner`
 - The page assumes the backend returns a paged payload with `services` or `items`, plus `page` and `pageCount`.
 - If the backend clamps an out-of-range request, the UI follows the server-provided `page` and `pageCount` so the visible indicator stays in sync.
 - Service rows link through to `/services/:serviceId` using encoded IDs.
+
+## Changelog empty state
+
+The `/changelog` page uses the shared `EmptyState` component when the API returns `{ "entries": [] }`, so a valid empty changelog reads as "No changelog entries yet" instead of rendering a blank ordered list.
 
 ## Commands
 

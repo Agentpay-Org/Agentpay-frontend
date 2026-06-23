@@ -102,6 +102,13 @@ export async function apiFetch<T>(
     }, effectiveTimeoutMs);
   }
 
+  const cleanup = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  };
+
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...restInit,
@@ -111,7 +118,10 @@ export async function apiFetch<T>(
         ...(headers ?? {}),
       },
     });
-    if (res.status === 204) return undefined as T;
+    if (res.status === 204) {
+      cleanup();
+      return undefined as T;
+    }
     let body: T | ApiError | undefined;
     try {
       body = (await readJson(res)) as T | ApiError | undefined;
@@ -124,17 +134,14 @@ export async function apiFetch<T>(
     if (!res.ok) {
       throw createHttpError(res.status, body, res.statusText);
     }
+    cleanup();
     return body as T;
   } catch (error) {
+    cleanup();
     if (timeoutError !== undefined) {
       throw timeoutError;
     }
     throw error;
-  } finally {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-    callerSignal?.removeEventListener("abort", abortFromCaller);
   }
 }
 

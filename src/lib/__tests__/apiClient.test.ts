@@ -283,6 +283,23 @@ describe("apiClient", () => {
     expect(error.error).toBe("server_error");
   });
 
+  it("adds a generic error code when an empty error response has no status text", async () => {
+    mockFetch(jest.fn(async () => ({
+      ok: false,
+      status: 500,
+      statusText: "",
+      json: async () => null,
+    })));
+
+    const { apiGet } = await loadApiClient();
+    const error = (await apiGet("/api/v1/things/1").catch((err) => err)) as Error &
+      Partial<ApiError>;
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe("Request failed");
+    expect(error.error).toBe("http_error");
+  });
+
   it("throws a generic ApiError when an error response is not JSON", async () => {
     mockFetch(jest.fn(async () => new Response("Bad gateway", { status: 502 })));
 
@@ -378,6 +395,28 @@ describe("apiClient", () => {
     callerController.abort(callerAbort);
 
     await expect(pending).rejects.toBe(callerAbort);
+  });
+
+  it("passes through a signal that was already aborted before the request starts", async () => {
+    const callerController = new AbortController();
+    const callerAbort = new Error("Already cancelled");
+    callerController.abort(callerAbort);
+
+    let fetchSignal: AbortSignal | undefined;
+    mockFetch(jest.fn(async (_url, init) => {
+      fetchSignal = init?.signal as AbortSignal;
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }));
+
+    await expect(
+      apiFetch<{ ok: boolean }>("/api/v1/things", {
+        signal: callerController.signal,
+        timeoutMs: 0,
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(fetchSignal?.aborted).toBe(true);
+    expect(fetchSignal?.reason).toBe(callerAbort);
   });
 
   it("still resolves normally before timeout and leaves the signal un-aborted", async () => {

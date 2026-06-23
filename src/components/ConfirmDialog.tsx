@@ -53,8 +53,7 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return;
 
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
 
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -62,7 +61,7 @@ export function ConfirmDialog({
     const dialog = dialogRef.current;
     if (dialog) {
       const [firstFocusable] = getFocusableElements(dialog);
-      (firstFocusable ?? dialog).focus();
+      firstFocusable.focus();
     }
 
     return () => {
@@ -84,8 +83,7 @@ export function ConfirmDialog({
 
     if (event.key !== "Tab") return;
 
-    const dialog = dialogRef.current;
-    if (!dialog) return;
+    const dialog = dialogRef.current as HTMLDivElement;
 
     const focusableElements = getFocusableElements(dialog);
     if (focusableElements.length === 0) {

@@ -98,6 +98,27 @@ describe("ConfirmDialog", () => {
     expect(cancelButton).toHaveFocus();
   });
 
+  it("focuses the dialog container when no actions are focusable", () => {
+    render(<ConfirmDialogHarness />);
+
+    const { dialog, cancelButton, confirmButton } = openDialog();
+    cancelButton.setAttribute("disabled", "");
+    confirmButton.setAttribute("disabled", "");
+
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(dialog).toHaveFocus();
+  });
+
+  it("returns focus to the first action when active focus is outside", () => {
+    render(<ConfirmDialogHarness />);
+
+    const { dialog, cancelButton } = openDialog();
+    screen.getByRole("button", { name: /outside action/i }).focus();
+
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(cancelButton).toHaveFocus();
+  });
+
   it("restores focus to the trigger when the cancel button closes the dialog", () => {
     render(<ConfirmDialogHarness />);
 
@@ -140,6 +161,16 @@ describe("ConfirmDialog", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("ignores non-Tab navigation keys", () => {
+    render(<ConfirmDialogHarness />);
+
+    const { dialog, cancelButton } = openDialog();
+    fireEvent.keyDown(dialog, { key: "Enter" });
+
+    expect(screen.getByRole("dialog", { name: /delete project/i })).toBeInTheDocument();
+    expect(cancelButton).toHaveFocus();
   });
 
   it("returns focus to dialog actions when Tab starts on the dialog container", () => {

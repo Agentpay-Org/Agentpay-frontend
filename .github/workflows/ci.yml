@@ -43,6 +43,7 @@ jobs:
 
       - name: Post coverage summary as PR comment
         if: github.event_name == 'pull_request' && hashFiles('coverage/coverage-summary.json') != ''
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |

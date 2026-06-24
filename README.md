@@ -274,6 +274,15 @@ The `/services` page now uses server-driven pagination with the shared `Spinner`
 - If the backend clamps an out-of-range request, the UI follows the server-provided `page` and `pageCount` so the visible indicator stays in sync.
 - Service rows link through to `/services/:serviceId` using encoded IDs.
 
+## Service price editing
+
+The `/services/:serviceId/edit` page shows a loading spinner while the current
+price is fetched and surfaces prefill failures with `role="alert"`. After the
+price field changes, the page warns before browser unload and asks for
+confirmation on the in-app Back link so unsaved edits are not silently lost. A
+successful save shows a toast, clears the dirty state, and returns to the
+service detail page.
+
 ## Agents directory paging
 
 The `/agents` page lists every agent identity seen by the backend, paginated with the same `Spinner`, `EmptyState`, and `Pagination` primitives used by the services page.

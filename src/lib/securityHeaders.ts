@@ -1,9 +1,10 @@
 // Builds the Content-Security-Policy and other security hardening headers
 // served by every route in the dashboard.
 //
-// Designed to be consumed by `next.config.ts`'s `headers()` callback at
-// build time. `apiBase` is read from `NEXT_PUBLIC_AGENTPAY_API_BASE` so
-// `connect-src` always lines up with the backend the client actually fetches.
+// The CSP is nonce-aware and should be emitted from middleware so every
+// response gets a per-request script nonce. `apiBase` is read from
+// `NEXT_PUBLIC_AGENTPAY_API_BASE` so `connect-src` always lines up with the
+// backend the client actually fetches.
 
 import { DEFAULT_API_BASE } from "./resolveApiBase";
 
@@ -21,6 +22,10 @@ export type BuildSecurityHeadersOptions = {
   apiBase: string;
   /** Whether the build is a development build (drives script-src). */
   isDev?: boolean;
+  /** Per-request nonce for inline scripts that must execute before paint. */
+  scriptNonce?: string;
+  /** Allows next.config.ts to keep non-CSP hardening headers without a static CSP. */
+  includeCsp?: boolean;
 };
 
 /**
@@ -38,10 +43,8 @@ export function originOf(apiBase: string): string {
 
 /**
  * Build a Content-Security-Policy value that:
- *   - restricts scripts to self with `'unsafe-inline'` in production (Next.js
- *     emits an inline bootstrap script for hydration when CSP is set via
- *     `next.config.ts` `headers()` rather than nonce-aware middleware) and
- *     adds `'unsafe-eval'` in development for Fast Refresh
+ *   - restricts scripts to self plus a per-request nonce, with `'unsafe-eval'`
+ *     in development for Fast Refresh
  *   - restricts styles to self with `'unsafe-inline'` because next/font and
  *     Next.js inject style tags at build time
  *   - allows `connect-src` to the configured API origin + 'self'
@@ -51,10 +54,14 @@ export function originOf(apiBase: string): string {
  *     `navigate-to`, which we deliberately don't)
  */
 export function buildCsp(options: BuildSecurityHeadersOptions): string {
-  const { apiBase, isDev = false } = options;
+  const { apiBase, isDev = false, scriptNonce } = options;
   const apiOrigin = originOf(apiBase);
 
-  const scriptSrc = ["'self'", "'unsafe-inline'", isDev ? "'unsafe-eval'" : ""]
+  const scriptSrc = [
+    "'self'",
+    scriptNonce ? `'nonce-${scriptNonce}'` : "",
+    isDev ? "'unsafe-eval'" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -86,14 +93,16 @@ export function buildCsp(options: BuildSecurityHeadersOptions): string {
 export function defaultSecurityHeaders(
   options: BuildSecurityHeadersOptions
 ): Record<string, string> {
-  const { isDev = false } = options;
+  const { isDev = false, includeCsp = true } = options;
   const headers: Record<string, string> = {
-    "Content-Security-Policy": buildCsp(options),
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
     "Permissions-Policy": DEFAULT_PERMISSIONS_POLICY,
   };
+  if (includeCsp) {
+    headers["Content-Security-Policy"] = buildCsp(options);
+  }
   if (!isDev) {
     headers["Strict-Transport-Security"] =
       "max-age=63072000; includeSubDomains; preload";

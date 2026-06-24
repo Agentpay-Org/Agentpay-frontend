@@ -9,9 +9,14 @@ import {
 const prod: BuildSecurityHeadersOptions = {
   apiBase: "https://api.example.com",
 };
+const prodWithNonce: BuildSecurityHeadersOptions = {
+  apiBase: "https://api.example.com",
+  scriptNonce: "test-nonce",
+};
 const dev: BuildSecurityHeadersOptions = {
   apiBase: "https://api.example.com",
   isDev: true,
+  scriptNonce: "dev-nonce",
 };
 
 describe("originOf", () => {
@@ -43,21 +48,27 @@ describe("buildCsp", () => {
     expect(csp).toContain("connect-src 'self' http://localhost:3001");
   });
 
-  it("includes 'self' for script-src in production", () => {
-    expect(buildCsp(prod)).toMatch(/script-src 'self'/);
-    expect(buildCsp(prod)).not.toMatch(/script-src[^;]*'unsafe-eval'/);
+  it("includes 'self' and the nonce for script-src in production", () => {
+    expect(buildCsp(prodWithNonce)).toMatch(
+      /script-src 'self' 'nonce-test-nonce'/
+    );
+    expect(buildCsp(prodWithNonce)).not.toMatch(/script-src[^;]*'unsafe-eval'/);
   });
 
-  it("includes 'unsafe-inline' in production script-src so Next.js hydration scripts run", () => {
-    // next.config.ts headers() does not participate in the middleware nonce
-    // pipeline; without 'unsafe-inline' the inline __NEXT_DATA__ block would
-    // be blocked. If a future change removes this, add nonce-aware middleware
-    // at the same time.
-    expect(buildCsp(prod)).toMatch(/script-src[^;]*'unsafe-inline'/);
+  it("omits script-src unsafe-inline in production", () => {
+    expect(buildCsp(prodWithNonce)).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  });
+
+  it("keeps script-src unsafe-inline out even if middleware has not supplied a nonce", () => {
+    expect(buildCsp(prod)).toContain("script-src 'self'");
+    expect(buildCsp(prod)).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(buildCsp(prod)).not.toMatch(/script-src[^;]*'nonce-/);
   });
 
   it("adds 'unsafe-eval' to script-src in development for Fast Refresh", () => {
     expect(buildCsp(dev)).toContain("'unsafe-eval'");
+    expect(buildCsp(dev)).toContain("'nonce-dev-nonce'");
+    expect(buildCsp(dev)).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   });
 
   it("includes 'unsafe-inline' for style-src because next/font injects styles", () => {
@@ -98,8 +109,12 @@ describe("buildCsp", () => {
 
 describe("defaultSecurityHeaders", () => {
   it("returns every required hardening header (including HSTS) in production", () => {
-    const headers = defaultSecurityHeaders(prod);
+    const headers = defaultSecurityHeaders(prodWithNonce);
     expect(headers["Content-Security-Policy"]).toBeTruthy();
+    expect(headers["Content-Security-Policy"]).toContain("'nonce-test-nonce'");
+    expect(headers["Content-Security-Policy"]).not.toMatch(
+      /script-src[^;]*'unsafe-inline'/
+    );
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(headers["X-Frame-Options"]).toBe("DENY");
@@ -108,13 +123,28 @@ describe("defaultSecurityHeaders", () => {
   });
 
   it("omits Strict-Transport-Security in development so browsers don't cache the upgrade", () => {
-    const headers = defaultSecurityHeaders({ apiBase: "http://localhost:3001", isDev: true });
+    const headers = defaultSecurityHeaders({
+      apiBase: "http://localhost:3001",
+      isDev: true,
+      scriptNonce: "dev-nonce",
+    });
     expect(headers["Strict-Transport-Security"]).toBeUndefined();
     // Baseline headers should still be present in dev.
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["X-Frame-Options"]).toBe("DENY");
     expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
-    expect(headers["Content-Security-Policy"]).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+    expect(headers["Content-Security-Policy"]).toContain(
+      "script-src 'self' 'nonce-dev-nonce' 'unsafe-eval'"
+    );
+  });
+
+  it("can omit CSP when next.config.ts serves only static hardening headers", () => {
+    const headers = defaultSecurityHeaders({
+      apiBase: "https://api.example.com",
+      includeCsp: false,
+    });
+    expect(headers["Content-Security-Policy"]).toBeUndefined();
+    expect(headers["X-Content-Type-Options"]).toBe("nosniff");
   });
 
   it("disables a wide set of potentially sensitive browser features by default", () => {

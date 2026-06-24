@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
     const headers = defaultSecurityHeaders({
       apiBase,
       isDev: process.env.NODE_ENV !== "production",
+      includeCsp: false,
     });
     return [
       {

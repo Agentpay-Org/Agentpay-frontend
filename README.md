@@ -200,7 +200,17 @@ The home page (`src/app/page.tsx`) renders the primary navigation entry points (
 
 ## Security headers
 
-A baseline security header set (CSP, `X-Frame-Options: DENY`, `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in `next.config.ts` via `src/lib/securityHeaders.ts`. The CSP `connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically; `<a href>` links to external sites (`https://stellar.org`, etc.) remain navigable.
+A baseline security header set (`X-Frame-Options: DENY`, `Referrer-Policy`,
+`X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in
+`next.config.ts` via `src/lib/securityHeaders.ts`. The CSP is emitted from
+`src/proxy.ts` instead of static config so every request gets a fresh script
+nonce. Proxy also forwards the nonce in `x-nonce`; the root layout
+reads that header and applies it to the inline theme pre-paint script. The CSP
+`connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically,
+keeps `style-src 'unsafe-inline'` for Next/font style injection, and keeps
+`script-src` free of `'unsafe-inline'` while preserving development
+`'unsafe-eval'` for Fast Refresh. `<a href>` links to external sites
+(`https://stellar.org`, etc.) remain navigable.
 
 ## Route map (frontend)
 

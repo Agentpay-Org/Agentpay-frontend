@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UsagePage from "./page";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { IDENTIFIER_MAX_LENGTH } from "@/lib/validateId";
 
 jest.mock("@/lib/apiClient", () => ({
   apiGet: jest.fn(),
@@ -100,6 +101,35 @@ describe("UsagePage", () => {
     expect(apiPostMock).not.toHaveBeenCalled();
   });
 
+  it("blocks record submit and links field errors for invalid identifiers", async () => {
+    render(<UsagePage />);
+
+    const agentInput = screen.getAllByLabelText(/^Agent$/i)[0];
+    const serviceInput = screen.getAllByLabelText(/^Service ID$/i)[0];
+
+    fireEvent.change(agentInput, { target: { value: "   " } });
+    fireEvent.change(serviceInput, {
+      target: { value: "s".repeat(IDENTIFIER_MAX_LENGTH + 1) },
+    });
+    fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+      target: { value: "1" },
+    });
+    fireEvent.submit(screen.getByLabelText(/^Requests$/i).closest("form")!);
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts[0]).toHaveTextContent("Agent is required.");
+    expect(alerts[1]).toHaveTextContent("Service ID must be 128 characters or fewer.");
+    expect(agentInput).toHaveAttribute("aria-invalid", "true");
+    expect(serviceInput).toHaveAttribute("aria-invalid", "true");
+    expect(agentInput.getAttribute("aria-describedby")).toBe(
+      alerts[0].getAttribute("id")
+    );
+    expect(serviceInput.getAttribute("aria-describedby")).toBe(
+      alerts[1].getAttribute("id")
+    );
+    expect(apiPostMock).not.toHaveBeenCalled();
+  });
+
   it("uses apiGet for query usage and renders the result", async () => {
     apiGetMock.mockResolvedValueOnce({
       agent: "a",
@@ -120,6 +150,26 @@ describe("UsagePage", () => {
       expect(screen.getByRole("status")).toHaveTextContent(/a \/ s: 12 request\(s\)\./i);
     });
     expect(apiGetMock).toHaveBeenCalledWith("/api/v1/usage/a/s");
+  });
+
+  it("blocks query submit for invalid identifiers", async () => {
+    render(<UsagePage />);
+
+    const queryAgentInput = screen.getAllByLabelText(/^Agent$/i)[1];
+    const queryServiceInput = screen.getByLabelText(/^Service ID$/i, {
+      selector: 'input[name="queryServiceId"]',
+    });
+
+    fireEvent.change(queryAgentInput, { target: { value: "agent/with/slash" } });
+    fireEvent.change(queryServiceInput, { target: { value: "   " } });
+    fireEvent.submit(queryServiceInput.closest("form")!);
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts[0]).toHaveTextContent(
+      "Agent can only contain letters, numbers, dots, underscores, colons, and hyphens."
+    );
+    expect(alerts[1]).toHaveTextContent("Service ID is required.");
+    expect(apiGetMock).not.toHaveBeenCalled();
   });
 
   it("shows a request id when the query request fails", async () => {
@@ -203,7 +253,7 @@ describe("UsagePage", () => {
 
     // Verify busy state
     expect(queryButton).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent(/Querying…/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/Querying/i);
 
     // Resolve first query
     resolveQuery!({
@@ -231,7 +281,7 @@ describe("UsagePage", () => {
 
     // Prior result should be cleared immediately
     expect(screen.queryByText(/10 request\(s\)/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/Querying…/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/Querying/i);
 
     resolveQuery2!({
       agent: "b",
@@ -303,7 +353,7 @@ describe("UsagePage", () => {
 
     // Button should be disabled and show busy text
     expect(recordButton).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent(/Recording…/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/Recording/i);
 
     // Try submitting again
     fireEvent.submit(form);

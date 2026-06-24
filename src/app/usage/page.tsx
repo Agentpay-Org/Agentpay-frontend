@@ -1,8 +1,10 @@
 "use client";
 
 import { Spinner } from "@/components/Spinner";
+import { TextField } from "@/components/TextField";
 import type { ApiError } from "@/lib/apiClient";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { validateIdentifier } from "@/lib/validateId";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
@@ -23,6 +25,13 @@ type QueryStatus =
   | { kind: "loading" }
   | { kind: "ok"; result: QueryResult | null }
   | { kind: "error"; message: string; requestId?: string };
+
+type FieldErrors = Partial<{
+  agent: string;
+  serviceId: string;
+  queryAgent: string;
+  queryService: string;
+}>;
 
 function describeError(error: unknown): { message: string; requestId?: string } {
   const apiError = error as Partial<ApiError> | null | undefined;
@@ -52,23 +61,47 @@ export default function UsagePage() {
   const [queryAgent, setQueryAgent] = useState("");
   const [queryService, setQueryService] = useState("");
   const [queryResult, setQueryResult] = useState<QueryStatus>({ kind: "idle" });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const isRecording = status.kind === "loading";
   const isQuerying = queryResult.kind === "loading";
+
+  const clearFieldError = (field: keyof FieldErrors) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const onRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isRecording) return;
+
+    const agentResult = validateIdentifier(agent, "Agent");
+    const serviceResult = validateIdentifier(serviceId, "Service ID");
+
+    if (!agentResult.ok || !serviceResult.ok) {
+      const nextErrors: FieldErrors = {};
+      if (!agentResult.ok) nextErrors.agent = agentResult.message;
+      if (!serviceResult.ok) nextErrors.serviceId = serviceResult.message;
+      setFieldErrors(nextErrors);
+      setStatus({ kind: "idle" });
+      return;
+    }
+
     const requestsNum = Number(requests);
     if (!Number.isInteger(requestsNum) || requestsNum <= 0) {
       setStatus({ kind: "error", message: "requests must be a positive integer" });
       return;
     }
 
+    setFieldErrors({});
     setStatus({ kind: "loading" });
     try {
       const body = await apiPost<{ total: number }>("/api/v1/usage", {
-        agent,
-        serviceId,
+        agent: agentResult.value,
+        serviceId: serviceResult.value,
         requests: requestsNum,
       });
       setStatus({ kind: "ok", total: body?.total });
@@ -81,12 +114,26 @@ export default function UsagePage() {
   const onQuery = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isQuerying) return;
+
+    const agentResult = validateIdentifier(queryAgent, "Agent");
+    const serviceResult = validateIdentifier(queryService, "Service ID");
+
+    if (!agentResult.ok || !serviceResult.ok) {
+      const nextErrors: FieldErrors = {};
+      if (!agentResult.ok) nextErrors.queryAgent = agentResult.message;
+      if (!serviceResult.ok) nextErrors.queryService = serviceResult.message;
+      setFieldErrors(nextErrors);
+      setQueryResult({ kind: "idle" });
+      return;
+    }
+
+    setFieldErrors({});
     setQueryResult({ kind: "loading" });
 
     try {
       const result = await apiGet<QueryResult>(
-        `/api/v1/usage/${encodeURIComponent(queryAgent)}/${encodeURIComponent(
-          queryService
+        `/api/v1/usage/${encodeURIComponent(agentResult.value)}/${encodeURIComponent(
+          serviceResult.value
         )}`
       );
       setQueryResult({ kind: "ok", result: result ?? null });
@@ -114,26 +161,28 @@ export default function UsagePage() {
           Record usage
         </h2>
         <form onSubmit={onRecord} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Agent</span>
-            <input
-              required
-              name="agent"
-              value={agent}
-              onChange={(e) => setAgent(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Service ID</span>
-            <input
-              required
-              name="serviceId"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
+          <TextField
+            required
+            label="Agent"
+            name="agent"
+            value={agent}
+            error={fieldErrors.agent}
+            onChange={(e) => {
+              setAgent(e.target.value);
+              clearFieldError("agent");
+            }}
+          />
+          <TextField
+            required
+            label="Service ID"
+            name="serviceId"
+            value={serviceId}
+            error={fieldErrors.serviceId}
+            onChange={(e) => {
+              setServiceId(e.target.value);
+              clearFieldError("serviceId");
+            }}
+          />
           <label className="flex flex-col gap-1 text-sm">
             <span>Requests</span>
             <input
@@ -151,7 +200,7 @@ export default function UsagePage() {
             disabled={isRecording}
             className="self-start rounded-full bg-black px-5 py-2 text-sm font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:bg-white dark:text-black"
           >
-            {isRecording ? <Spinner label="Recording…" /> : "Record"}
+            {isRecording ? <Spinner label="Recording" /> : "Record"}
           </button>
         </form>
         {status.kind === "ok" && (
@@ -173,32 +222,34 @@ export default function UsagePage() {
           Query usage
         </h2>
         <form onSubmit={onQuery} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Agent</span>
-            <input
-              required
-              name="queryAgent"
-              value={queryAgent}
-              onChange={(e) => setQueryAgent(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Service ID</span>
-            <input
-              required
-              name="queryServiceId"
-              value={queryService}
-              onChange={(e) => setQueryService(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
+          <TextField
+            required
+            label="Agent"
+            name="queryAgent"
+            value={queryAgent}
+            error={fieldErrors.queryAgent}
+            onChange={(e) => {
+              setQueryAgent(e.target.value);
+              clearFieldError("queryAgent");
+            }}
+          />
+          <TextField
+            required
+            label="Service ID"
+            name="queryServiceId"
+            value={queryService}
+            error={fieldErrors.queryService}
+            onChange={(e) => {
+              setQueryService(e.target.value);
+              clearFieldError("queryService");
+            }}
+          />
           <button
             type="submit"
             disabled={isQuerying}
             className="self-start rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-zinc-700"
           >
-            {isQuerying ? <Spinner label="Querying…" /> : "Query"}
+            {isQuerying ? <Spinner label="Querying" /> : "Query"}
           </button>
         </form>
         {queryResult.kind === "ok" && queryResult.result && (

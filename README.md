@@ -144,6 +144,14 @@ See [docs/api-integration.md](docs/api-integration.md) for the complete referenc
 every backend endpoint the dashboard calls — request bodies, response shapes, the
 shared `ApiError` envelope, the 204/no-body convention, and pause-flag semantics.
 
+### Usage identifier validation
+
+The `/usage` record and query forms validate `agent` and `serviceId` values before
+building API requests. Identifiers are trimmed, must be 1-128 characters, and may
+only contain ASCII letters, numbers, dots (`.`), underscores (`_`), colons (`:`),
+and hyphens (`-`). The UI still calls `encodeURIComponent` when placing valid
+identifiers into request paths.
+
 ## Environment variables
 
 | Variable                        | Visibility                      | Default                 | Purpose                                                                                                                                                                         |

@@ -1,5 +1,8 @@
 import { type ReactNode } from "react";
 
+/**
+ * KeyValueGrid renders semantic label/value pairs using a <dl>.
+ */
 type Row = { label: ReactNode; value: ReactNode };
 
 export function KeyValueGrid({ rows }: { rows: Row[] }) {

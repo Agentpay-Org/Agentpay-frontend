@@ -1,5 +1,10 @@
 import { type ReactNode } from "react";
 
+/**
+ * EmptyState is a small presentational helper for empty list/detail screens.
+ *
+ * It renders a title and optional description and action content.
+ */
 type Props = {
   title: ReactNode;
   description?: ReactNode;

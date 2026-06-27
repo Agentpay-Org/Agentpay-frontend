@@ -1,5 +1,9 @@
 import { type ReactNode } from "react";
 
+/**
+ * PageHeading renders a consistent <h1> header with optional description and
+ * an action slot (e.g., button/link) on the right.
+ */
 type Props = {
   title: ReactNode;
   description?: ReactNode;

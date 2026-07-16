@@ -8,6 +8,30 @@ type Props = {
 };
 
 /**
+ * Calculates the collision-aware positioning of the tooltip.
+ *
+ * - Measures available vertical space above the trigger to determine if it should flip below.
+ * - Flips to bottom if space above is less than tooltip height + 8px.
+ * - Centers the tooltip horizontally relative to the trigger, then clamps it
+ *   within the viewport boundaries (with an 8px padding) to prevent horizontal overflow.
+ *
+ * @param wrapperRect - Bounding rectangle of the trigger wrapper.
+ * @param tooltipRect - Bounding rectangle of the tooltip element.
+ * @param viewportWidth - Total width of the window/viewport.
+ * @returns Computed relative left coordinate and whether the tooltip should be flipped below.
+ */
+export function calculateTooltipPosition(
+  wrapperRect: DOMRect | DOMRectReadOnly,
+  tooltipRect: DOMRect | DOMRectReadOnly,
+  viewportWidth: number
+): { left: number; isFlipped: boolean } {
+  const isFlipped = wrapperRect.top < tooltipRect.height + 8;
+  const tooltipLeftViewport = wrapperRect.left + wrapperRect.width / 2 - tooltipRect.width / 2;
+  const clampedLeft = Math.max(8, Math.min(viewportWidth - 8 - tooltipRect.width, tooltipLeftViewport));
+  return { left: clampedLeft - wrapperRect.left, isFlipped };
+}
+
+/**
  * Accessible tooltip implementing WCAG 2.1 SC 1.4.13 (Content on Hover or Focus):
  *
  * - Dismissible: pressing Escape hides the tooltip without moving focus off the
@@ -61,20 +85,12 @@ export function Tooltip({ label, children }: Props) {
       const tooltipRect = tooltip.getBoundingClientRect();
 
       const viewportWidth = window.innerWidth;
-      const spaceAbove = wrapperRect.top;
-      const tooltipHeight = tooltipRect.height;
-      const tooltipWidth = tooltipRect.width;
-
-      // Flip below if space above is less than tooltip height + 8px margin
-      const isFlipped = spaceAbove < tooltipHeight + 8;
-
-      // Center horizontally relative to trigger wrapper, then clamp inside viewport
-      const tooltipLeftViewport = wrapperRect.left + wrapperRect.width / 2 - tooltipWidth / 2;
-      const clampedTooltipLeftViewport = Math.max(
-        8,
-        Math.min(viewportWidth - 8 - tooltipWidth, tooltipLeftViewport)
+      
+      const { left: relativeLeft, isFlipped } = calculateTooltipPosition(
+        wrapperRect,
+        tooltipRect,
+        viewportWidth
       );
-      const relativeLeft = clampedTooltipLeftViewport - wrapperRect.left;
 
       setCoords({
         left: relativeLeft,

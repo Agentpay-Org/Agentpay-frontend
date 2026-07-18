@@ -2,6 +2,8 @@
 
 import { use, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { EmptyState } from "@/components/EmptyState";
+import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
 import { formatRequests } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
@@ -27,7 +29,7 @@ export default function AgentDetailPage({
         if (!cancelled) setTotalState({ agent, total: b.total });
       })
       .catch(() => {
-        /* total is optional */
+        /* total is optional — shown as unavailable */
       });
 
     return () => {
@@ -47,18 +49,30 @@ export default function AgentDetailPage({
     >
       <Breadcrumb items={[{ label: "Agents", href: "/agents" }, { label: agent }]} />
       <h1 className="text-3xl font-semibold tracking-tight font-mono">{agent}</h1>
+      {usageState.status === "loading" && (
+        <div className="flex justify-center py-10">
+          <Spinner label="Loading usage" />
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-sm text-rose-600">
           {error}
         </p>
       )}
-      {total !== null && (
-        <p className="text-sm">
-          Lifetime total: <strong>{formatRequests(total)}</strong> requests
-        </p>
-      )}
+      <p className="text-sm">
+        Lifetime total:{" "}
+        {total !== null ? (
+          <strong>{formatRequests(total)}</strong>
+        ) : (
+          <span className="italic text-zinc-500">Total unavailable</span>
+        )}{" "}
+        requests
+      </p>
       {items && items.length === 0 && (
-        <p className="text-sm text-zinc-500">No services consumed yet.</p>
+        <EmptyState
+          title="No services consumed yet."
+          description="This agent has not made any requests to registered services."
+        />
       )}
       {items && items.length > 0 && (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">

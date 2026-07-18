@@ -1,33 +1,82 @@
 const STROOPS_PER_XLM = 10_000_000;
 const DEFAULT_LOCALE = "en-US";
 
-const xlmFormatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 7,
-});
+const formattersCache = new Map<string, Intl.NumberFormat>();
 
-const integerFormatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
-  maximumFractionDigits: 0,
-});
+function getFormatter(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `${locale}-${JSON.stringify(options)}`;
+  let formatter = formattersCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    formattersCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+export interface FormatStroopsOptions {
+  /** If true, format as raw stroops instead of converting to XLM (e.g. "123,456,789 stroops") */
+  forceRaw?: boolean;
+  /** The locale to use for formatting. Defaults to "en-US" */
+  locale?: string;
+}
 
 /**
  * Format a stroops amount using Stellar's 1 XLM = 10,000,000 stroops ratio.
- * Zero remains `0 XLM`; non-zero sub-cent values stay in grouped raw stroops
+ * Zero remains `0 XLM`. Non-zero sub-cent values stay in grouped raw stroops
  * so tiny balances are not hidden as `0.00 XLM`.
+ *
+ * @param stroops - The amount in stroops to format.
+ * @param optionsOrForceRaw - Optional configuration object or boolean toggle to force raw stroops formatting.
+ * @returns A locale-formatted string representation.
  */
-export function formatStroops(stroops: number): string {
-  const xlm = stroops / STROOPS_PER_XLM;
-  if (xlm === 0) return "0 XLM";
-  if (xlm < 0.01) {
-    const unit = Math.abs(stroops) === 1 ? "stroop" : "stroops";
-    return `${integerFormatter.format(stroops)} ${unit}`;
+export function formatStroops(
+  stroops: number,
+  optionsOrForceRaw?: FormatStroopsOptions | boolean
+): string {
+  const forceRaw = typeof optionsOrForceRaw === "boolean"
+    ? optionsOrForceRaw
+    : optionsOrForceRaw?.forceRaw;
+  let locale = DEFAULT_LOCALE;
+  if (optionsOrForceRaw && typeof optionsOrForceRaw === "object" && optionsOrForceRaw.locale) {
+    locale = optionsOrForceRaw.locale;
   }
-  return `${xlmFormatter.format(xlm)} XLM`;
+
+  const xlm = stroops / STROOPS_PER_XLM;
+  
+  // Keep the 0 XLM zero case
+  if (xlm === 0) return "0 XLM";
+
+  // Check if we force raw stroops or if we are below the sub-cent threshold (< 0.01 XLM in absolute terms)
+  if (forceRaw || Math.abs(xlm) < 0.01) {
+    const unit = Math.abs(stroops) === 1 ? "stroop" : "stroops";
+    const formatter = getFormatter(locale, { maximumFractionDigits: 0 });
+    return `${formatter.format(stroops)} ${unit}`;
+  }
+
+  // Otherwise, format as XLM with 2 to 7 decimal places
+  const formatter = getFormatter(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  });
+  return `${formatter.format(xlm)} XLM`;
 }
 
-/** Format a numeric request count with thousands separators. */
-export function formatRequests(n: number): string {
-  return integerFormatter.format(n);
+/**
+ * Format a numeric request count with thousands separators.
+ *
+ * @param n - The number of requests.
+ * @param optionsOrLocale - Optional configuration object or string locale.
+ * @returns A locale-formatted integer string.
+ */
+export function formatRequests(
+  n: number,
+  optionsOrLocale?: { locale?: string } | string
+): string {
+  const locale = typeof optionsOrLocale === "string"
+    ? optionsOrLocale
+    : optionsOrLocale?.locale || DEFAULT_LOCALE;
+  const formatter = getFormatter(locale, { maximumFractionDigits: 0 });
+  return formatter.format(n);
 }
 
 /** Format an absolute timestamp into a short HH:MM:SS string. */
@@ -96,7 +145,6 @@ export function safeStringify(
     // but we still refuse to throw inside render code.
     return "[unserialisable]";
   }
-  if (serialised === undefined) return "[undefined]";
   if (serialised.length <= maxChars) return serialised;
   return (
     serialised.slice(0, Math.max(0, maxChars)) + EVENT_PAYLOAD_TRUNCATED_MARKER

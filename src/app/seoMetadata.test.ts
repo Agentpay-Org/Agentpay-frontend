@@ -59,29 +59,29 @@ describe("operatorOnlyRoutes", () => {
 
 describe("resolveSiteOrigin", () => {
   it("returns the configured origin with trailing slashes stripped", () => {
-    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "https://dashboard.example.com/" })).toBe(
+    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "https://dashboard.example.com/" } as NodeJS.ProcessEnv)).toBe(
       "https://dashboard.example.com"
     );
   });
 
   it("strips multiple trailing slashes", () => {
-    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "https://dashboard.example.com///" })).toBe(
+    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "https://dashboard.example.com///" } as NodeJS.ProcessEnv)).toBe(
       "https://dashboard.example.com"
     );
   });
 
   it("falls back to localhost:3000 when env is absent", () => {
-    expect(resolveSiteOrigin({})).toBe("http://localhost:3000");
+    expect(resolveSiteOrigin({} as NodeJS.ProcessEnv)).toBe("http://localhost:3000");
   });
 
   it("falls back to localhost:3000 when env value is whitespace-only", () => {
-    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "   " })).toBe(
+    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "   " } as NodeJS.ProcessEnv)).toBe(
       "http://localhost:3000"
     );
   });
 
   it("falls back to localhost:3000 when env value is an empty string", () => {
-    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "" })).toBe(
+    expect(resolveSiteOrigin({ NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN: "" } as NodeJS.ProcessEnv)).toBe(
       "http://localhost:3000"
     );
   });

@@ -212,4 +212,117 @@ describe("NewServicePage", () => {
       expect(submitButton).not.toHaveAttribute("aria-busy");
     });
   });
+
+  it("shows validation error on non-numeric alphabetic price", async () => {
+    render(<NewServicePage />);
+
+    const serviceIdInput = screen.getByLabelText("Service ID");
+    const priceInput = screen.getByLabelText("Price (stroops / request)");
+
+    fireEvent.change(serviceIdInput, { target: { value: "s" } });
+    fireEvent.change(priceInput, { target: { value: "abc" } });
+
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    expect(apiPostMock).not.toHaveBeenCalled();
+
+    expect(priceInput).toHaveAttribute("aria-invalid", "true");
+    const descId = priceInput.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+
+    const errorElement = document.getElementById(descId!);
+    expect(errorElement).toBeInTheDocument();
+    expect(errorElement).toHaveTextContent("Price must be a non-negative integer.");
+  });
+
+  it("accepts price of zero", async () => {
+    apiPostMock.mockResolvedValueOnce({} as never);
+
+    render(<NewServicePage />);
+
+    fireEvent.change(screen.getByLabelText("Service ID"), { target: { value: "free-svc" } });
+    fireEvent.change(screen.getByLabelText("Price (stroops / request)"), { target: { value: "0" } });
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
+        serviceId: "free-svc",
+        priceStroops: 0,
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/services");
+    });
+  });
+
+  it("submits with empty serviceId (no client-side guard)", async () => {
+    apiPostMock.mockResolvedValueOnce({} as never);
+
+    render(<NewServicePage />);
+
+    fireEvent.change(screen.getByLabelText("Price (stroops / request)"), { target: { value: "50" } });
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
+        serviceId: "",
+        priceStroops: 50,
+      });
+    });
+  });
+
+  it("clears previous alert error on successful re-submit", async () => {
+    apiPostMock.mockRejectedValueOnce(new Error("First failure"));
+
+    render(<NewServicePage />);
+
+    const sid = screen.getByLabelText("Service ID");
+    const prc = screen.getByLabelText("Price (stroops / request)");
+
+    fireEvent.change(sid, { target: { value: "retry-svc" } });
+    fireEvent.change(prc, { target: { value: "10" } });
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("First failure");
+
+    apiPostMock.mockResolvedValueOnce({} as never);
+
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/services");
+    });
+  });
+
+  it("displays backend 409 conflict error in alert", async () => {
+    apiPostMock.mockRejectedValueOnce(new Error("Service ID already exists"));
+
+    render(<NewServicePage />);
+
+    fireEvent.change(screen.getByLabelText("Service ID"), { target: { value: "dup-svc" } });
+    fireEvent.change(screen.getByLabelText("Price (stroops / request)"), { target: { value: "20" } });
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Service ID already exists");
+    expect(alert).toHaveClass("text-rose-600");
+  });
+
+  it("displays generic network error in alert", async () => {
+    apiPostMock.mockRejectedValueOnce(new Error("Network error"));
+
+    render(<NewServicePage />);
+
+    fireEvent.change(screen.getByLabelText("Service ID"), { target: { value: "net-svc" } });
+    fireEvent.change(screen.getByLabelText("Price (stroops / request)"), { target: { value: "30" } });
+    fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Network error");
+  });
 });

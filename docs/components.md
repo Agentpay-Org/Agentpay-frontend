@@ -352,3 +352,50 @@ It refreshes every 30 seconds.
 ```tsx
 <TimeAgo ts={event.createdAt} />
 ```
+
+## Formatting Helpers
+
+Formatting helpers live in `src/lib/format.ts` and are plain functions, not
+components. The ones relevant to identifier display are documented here because
+they pair with the display patterns above.
+
+### `truncateMiddle`
+
+| Param | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `value` | `string` | yes | The identifier to truncate. |
+| `head` | `number` | no | Leading characters kept. Defaults to `TRUNCATE_HEAD_DEFAULT` (8). |
+| `tail` | `number` | no | Trailing characters kept. Defaults to `TRUNCATE_TAIL_DEFAULT` (6). |
+
+Collapses the middle of a long identifier into a single ellipsis
+(`GABCDEFG…QRSTUV`) while preserving both ends. Agent and service ids often
+share a common prefix and only differ near the edges, so keeping the tail
+visible is what makes two truncated ids distinguishable — unlike CSS
+`text-overflow: ellipsis`, which hides it.
+
+Behaviour to rely on:
+
+- Values already within the budget (`head + tail + 1` characters, the `1`
+  being the ellipsis) are returned unchanged, so short ids never gain a
+  marker.
+- Counting is code-point aware; surrogate pairs are never split.
+- Negative or fractional `head` / `tail` values are clamped to non-negative
+  integers; non-finite values fall back to the defaults.
+
+When rendering the truncated form, always expose the full value through
+`title` (hover) and an accessible label such as `aria-label` (assistive
+technology), and keep `font-mono` so ids stay scannable:
+
+```tsx
+import { truncateMiddle } from "@/lib/format";
+
+<span className="font-mono" title={serviceId} aria-label={serviceId}>
+  {truncateMiddle(serviceId)}
+</span>
+```
+
+Used by the agent detail page (`src/app/agents/[agent]/page.tsx`) for the
+heading, breadcrumb, and per-service rows, and by the services list
+(`src/app/services/page.tsx`) for each service id. Pair with `CopyButton`
+when users need the full value on the clipboard — pass the untruncated id as
+its `value`.

@@ -6,8 +6,6 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TimeAgo } from "@/components/TimeAgo";
 import { safeFormatTimestamp } from "@/lib/format";
 import { safeHref } from "@/lib/url";
-import { EmptyState } from "@/components/EmptyState";
-import { Spinner } from "@/components/Spinner";
 
 type Webhook = { id: string; url: string; events: string[]; createdAt?: number | null };
 

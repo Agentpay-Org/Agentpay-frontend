@@ -489,6 +489,20 @@ The `/agents` page lists every agent identity seen by the backend, paginated wit
 - Backend errors are surfaced as a `role="alert"` paragraph; the pagination bar is suppressed while an error is shown.
 - The single-agent view (`/agents/:agent`) utilizes a semantic `<Breadcrumb>` trail for accessible orientation.
 
+### Agent detail page states
+
+The `/agents/:agent` detail page has four visual states:
+
+| State | Trigger | Renders |
+|---|---|---|
+| **Loading** | `GET /api/v1/agents/{agent}/usage` is in-flight | Centered `<Spinner>` with role="status", heading, breadcrumb, "Total unavailable" |
+| **Error** | Usage fetch rejects | `role="alert"` with the error message, heading, breadcrumb, "Total unavailable" |
+| **Empty** | Usage succeeds with zero items | `<EmptyState>` with title + description, breadcrumb, lifetime total or "Total unavailable" |
+| **Data** | Usage succeeds with items | Service list rows, breadcrumb, lifetime total (formatted via `formatRequests`) or "Total unavailable" when `GET /api/v1/agents/{agent}/total` fails |
+
+- The lifetime total line is always rendered. When the total request succeeds the formatted number is shown; when it fails the text reads "Total unavailable".
+- Both requests are aborted on unmount or rapid agent-switch. Stale responses from a previous agent id are ignored.
+
 ## Service top-agents paging
 
 The `/services/:serviceId/agents` page requests top agents with `page` and

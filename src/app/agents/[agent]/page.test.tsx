@@ -66,7 +66,174 @@ describe("AgentDetailPage", () => {
     apiGetMock.mockReset();
   });
 
-  it("renders usage rows and the optional lifetime total when both requests succeed", async () => {
+  // ---------------------------------------------------------------------------
+  // Loading state
+  // ---------------------------------------------------------------------------
+
+  it("renders a spinner while the primary usage request is pending", () => {
+    apiGetMock.mockImplementation(() => new Promise(() => undefined));
+
+    renderPage("agent-loading");
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("shows the heading and total-fallback while the usage request is still loading", () => {
+    apiGetMock.mockImplementation(() => new Promise(() => undefined));
+
+    renderPage("agent-loading");
+
+    expect(
+      screen.getByRole("heading", { name: "agent-loading" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Total unavailable")).toBeInTheDocument();
+  });
+
+  it("removes the spinner once the usage request resolves", async () => {
+    const usage = deferred<Usage>();
+    const total = deferred<{ total: number }>();
+
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) return usage.promise as never;
+      if (path.endsWith("/total")) return total.promise as never;
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-resolve");
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+
+    usage.resolve({
+      agent: "agent-resolve",
+      items: [{ serviceId: "svc", total: 5 }],
+    });
+    total.resolve({ total: 10 });
+
+    expect(await screen.findByText("svc")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Empty state
+  // ---------------------------------------------------------------------------
+
+  it("shows EmptyState when the agent has no per-service usage", async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        return Promise.resolve({
+          agent: "agent-empty",
+          items: [],
+        } satisfies Usage) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.resolve({ total: 0 }) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-empty");
+
+    expect(
+      await screen.findByText("No services consumed yet."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Lifetime total:/)).toHaveTextContent(
+      "Lifetime total: 0 requests",
+    );
+  });
+
+  it("shows EmptyState with total-unavailable when the total also fails", async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        return Promise.resolve({
+          agent: "agent-empty-no-total",
+          items: [],
+        } satisfies Usage) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.reject(new Error("total offline")) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-empty-no-total");
+
+    expect(
+      await screen.findByText("No services consumed yet."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Total unavailable")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Usage error (role=alert)
+  // ---------------------------------------------------------------------------
+
+  it("surfaces usage failures as a role=alert", async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        return Promise.reject(new Error("Backend usage offline")) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.resolve({ total: 10 }) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-error");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Backend usage offline",
+    );
+  });
+
+  it("hides the spinner after a usage error", async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        return Promise.reject(new Error("fail")) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.resolve({ total: 10 }) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-error-hide-spinner");
+
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Total fallback
+  // ---------------------------------------------------------------------------
+
+  it("shows 'Total unavailable' when the total request fails with non-empty items", async () => {
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        return Promise.resolve({
+          agent: "agent-no-total",
+          items: [{ serviceId: "svc-a", total: 3 }],
+        } satisfies Usage) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.reject(new Error("total offline")) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-no-total");
+
+    expect(await screen.findByText("svc-a")).toBeInTheDocument();
+    expect(screen.getByText("Total unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/Lifetime total:/)).toHaveTextContent(
+      "Lifetime total: Total unavailable requests",
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Both succeed
+  // ---------------------------------------------------------------------------
+
+  it("renders usage rows and the lifetime total when both requests succeed", async () => {
     apiGetMock.mockImplementation((path: string) => {
       if (path === "/api/v1/agents/agent-alpha/usage") {
         return Promise.resolve({
@@ -92,46 +259,30 @@ describe("AgentDetailPage", () => {
     );
   });
 
-  it("surfaces usage failures as a role=alert", async () => {
-    apiGetMock.mockImplementation((path: string) => {
-      if (path.endsWith("/usage")) {
-        return Promise.reject(new Error("Backend usage offline")) as never;
-      }
-      if (path.endsWith("/total")) {
-        return Promise.resolve({ total: 10 }) as never;
-      }
-      return Promise.reject(new Error(`unexpected path: ${path}`)) as never;
-    });
-
-    renderPage("agent-error");
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Backend usage offline",
-    );
-  });
-
-  it("keeps the optional total request as a soft failure", async () => {
+  it("renders Breadcrumb navigation with a link back to the agents list", async () => {
     apiGetMock.mockImplementation((path: string) => {
       if (path.endsWith("/usage")) {
         return Promise.resolve({
-          agent: "agent-soft-total",
+          agent: "agent-bread",
           items: [],
         } satisfies Usage) as never;
       }
       if (path.endsWith("/total")) {
-        return Promise.reject(new Error("total unavailable")) as never;
+        return Promise.resolve({ total: 0 }) as never;
       }
-      return Promise.reject(new Error(`unexpected path: ${path}`)) as never;
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
     });
 
-    renderPage("agent-soft-total");
+    renderPage("agent-bread");
 
     expect(
-      await screen.findByText("No services consumed yet."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Lifetime total:/)).not.toBeInTheDocument();
+      await screen.findByRole("link", { name: "Agents" }),
+    ).toHaveAttribute("href", "/agents");
   });
+
+  // ---------------------------------------------------------------------------
+  // Stale response guard (rapid agent switch)
+  // ---------------------------------------------------------------------------
 
   it("ignores stale usage and total responses after a rapid agent switch", async () => {
     const alphaUsage = deferred<Usage>();
@@ -167,7 +318,9 @@ describe("AgentDetailPage", () => {
         ),
       ).toBe(true);
     });
-    const alphaUsageSignal = signalFor("/api/v1/agents/agent-alpha/usage");
+    const alphaUsageSignal = signalFor(
+      "/api/v1/agents/agent-alpha/usage",
+    );
     expect(alphaUsageSignal?.aborted).toBe(false);
 
     rerender(<AgentDetailPage params={paramsFor("agent-beta")} />);
@@ -206,13 +359,19 @@ describe("AgentDetailPage", () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Abort on unmount
+  // ---------------------------------------------------------------------------
+
   it("aborts the useApi usage request and avoids state updates after unmount", async () => {
     const usage = deferred<Usage>();
     const total = deferred<{ total: number }>();
     let usageSignal: AbortSignal | undefined;
-    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {
-      /* silence React error logging */
-    });
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {
+        /* silence React error logging */
+      });
 
     apiGetMock.mockImplementation((path: string, init?: RequestInit) => {
       if (path.endsWith("/usage")) {
@@ -244,5 +403,48 @@ describe("AgentDetailPage", () => {
     } finally {
       consoleErrorSpy.mockRestore();
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Long agent identifiers
+  // ---------------------------------------------------------------------------
+
+  it("renders a very long agent id in the heading without overflow", () => {
+    const longId = "a".repeat(200);
+    apiGetMock.mockImplementation(() => new Promise(() => undefined));
+
+    renderPage(longId);
+
+    const heading = screen.getByRole("heading", { name: longId });
+    expect(heading).toBeInTheDocument();
+    expect(heading.className).toContain("font-mono");
+  });
+
+  it("applies font-mono to the agent id heading for all agent ids", () => {
+    apiGetMock.mockImplementation(() => new Promise(() => undefined));
+
+    renderPage("regular-agent");
+
+    const heading = screen.getByRole("heading", { name: "regular-agent" });
+    expect(heading.className).toContain("font-mono");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Breadcrumb always visible
+  // ---------------------------------------------------------------------------
+
+  it("renders breadcrumb during every state", () => {
+    apiGetMock.mockImplementation(() => new Promise(() => undefined));
+
+    renderPage("breadcrumb-test");
+
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
+      "href",
+      "/agents",
+    );
+    // The agent name appears in both the breadcrumb and heading
+    const agentTexts = screen.getAllByText("breadcrumb-test");
+    expect(agentTexts).toHaveLength(2);
   });
 });

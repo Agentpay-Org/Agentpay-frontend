@@ -114,7 +114,7 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/services`                   | Services list                                | `GET /api/v1/services` _(and/or list related endpoints in code)_                                                                                  |
 | `/services/:serviceId`        | Service details                              | `GET /api/v1/services/:serviceId` _(plus nested reads in code)_                                                                                   |
 | `/services/:serviceId/agents` | Agents for a given service                   | `GET /api/v1/services/:serviceId/agents`                                                                                                          |
-| `/services/:serviceId/edit`   | Edit service                                 | _(reads service + submits via service update endpoints in code)_                                                                                  |
+| `/services/:serviceId/edit`   | Edit service price with prefill loading, dirty-guard, and success toast | `GET /api/v1/services/:serviceId` (prefill), `PATCH /api/v1/services/:serviceId/price` (submit)                                                |
 | `/services/new`               | Create service                               | `POST /api/v1/services`                                                                                                                           |
 | `/settings`                   | User/app settings (theme configuration and Connection section displaying the resolved API base URL) | _(static UI settings surface)_                                                                                                                    |
 | `/stats`                      | Statistics                                   | _(calls stats endpoints in code)_                                                                                                                 |
@@ -131,6 +131,23 @@ the validated identifiers before placing them in the path.
 ### API keys page notes
 
 The `/api-keys` page lists each key label, prefix, and created-at age with the absolute ISO timestamp available on hover. If the account has no keys, the page renders a clear "No API keys yet" empty state instead of an empty list while preserving the create, reveal-once, copy, and revoke confirmation flows.
+
+### Services edit page notes
+
+The `/services/:serviceId/edit` page shows a `Spinner` while the prefill `GET`
+request is in flight and surfaces fetch failures in a `role="alert"` banner.
+
+Once loaded, the page tracks whether the price field differs from the original
+value (**dirty** state). When dirty:
+
+- A `beforeunload` event listener is registered so the browser prompts the
+  operator before closing the tab or navigating away.
+- The in-app "← Back to service" link triggers a `window.confirm` dialog;
+  the operator can cancel to stay on the page.
+
+On a successful `PATCH`, the page pushes a `"Price updated."` info toast via
+the global `ToastProvider`, clears the dirty flag, and redirects to the service
+detail page. PATCH failures are displayed in a `role="alert"` element.
 
 ### Export page notes
 

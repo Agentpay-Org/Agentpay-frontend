@@ -17,6 +17,11 @@ function format(deltaMs: number): string {
   return "just now";
 }
 
+/**
+ * Renders a `<time>` element with a relative human-readable date string
+ * (e.g. "just now", "3h ago"). A 30-second interval tick keeps the displayed
+ * text fresh; the interval is cleaned up on unmount.
+ */
 export function TimeAgo({ ts, title }: { ts: number; title?: string }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

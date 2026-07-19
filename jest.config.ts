@@ -28,6 +28,7 @@ const config: Config = {
     "./src/components/Badge.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Breadcrumb.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Card.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
+    "./src/components/CopyButton.tsx": { statements: 95, branches: 95, functions: 95, lines: 95 },
     "./src/components/ConfirmDialog.tsx": { statements: 100, branches: 94, functions: 100, lines: 100 },
     "./src/components/Header.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Pagination.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },

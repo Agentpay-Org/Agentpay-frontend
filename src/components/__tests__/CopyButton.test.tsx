@@ -119,4 +119,57 @@ describe("CopyButton", () => {
     expect(writeText).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
   });
+
+  it("reverts after 1500 ms even after double-click (independent timers)", async () => {
+    mockClipboard();
+    render(<CopyButton value="x" label="Copy" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copy");
+  });
+
+  it("does not enter copied state when clipboard.writeText rejects", async () => {
+    const writeText = mockClipboard(
+      jest.fn().mockRejectedValue(new Error("denied"))
+    );
+    render(<CopyButton value="x" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button")).toHaveTextContent("Copy");
+  });
+
+  it("passes an empty string value to the clipboard", async () => {
+    const writeText = mockClipboard();
+    render(<CopyButton value="" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(writeText).toHaveBeenCalledWith("");
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+  });
 });

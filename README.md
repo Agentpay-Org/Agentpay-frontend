@@ -374,9 +374,11 @@ The `/webhooks` page shows the shared `Spinner` component during the initial fet
 The frontend formats currency (Stroops / XLM) consistently using the helper `formatStroops` (located in `src/lib/format.ts`):
 
 - **Stroops definition:** 1 XLM = 10,000,000 stroops (Stellar's base unit).
-- **Sub-cent amounts:** If the value converts to less than `0.01 XLM` (but is non-zero), the formatting shows the amount in grouped raw `stroops` (e.g., `50,000 stroops`).
+- **Sub-cent amounts:** If the value converts to less than `0.01 XLM` in absolute magnitude (but is non-zero), the formatting shows the amount in grouped raw `stroops` (e.g., `50,000 stroops`).
 - **Standard amounts:** Standard amounts are formatted in grouped `XLM` with at least two and up to seven fraction digits so large values stay readable and fractional XLM is not hidden (e.g., `1.50 XLM`, `1,234.56789 XLM`).
 - **Zero amount:** A zero price formats to `0 XLM`.
+- **Locale-aware grouping:** Both XLM and raw-stroops representations support locale-aware thousands separators using cached `Intl.NumberFormat` instances. You can customize the locale by passing a `locale` option (e.g., `formatStroops(12345678900, { locale: "de-DE" })` results in `"1.234,56789 XLM"`).
+- **Raw-Stroops force toggle:** An optional second argument accepts a boolean or options object `{ forceRaw: boolean }` to bypass the XLM conversion and format the value as raw, grouped stroops (e.g., `formatStroops(10000000, true)` results in `"10,000,000 stroops"`). The zero case remains stable.
 
 ## Internationalization (groundwork)
 

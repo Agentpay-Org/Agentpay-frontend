@@ -1,59 +1,44 @@
+# fix(security): add rel=noopener and scheme validation for external links
+
 ## Summary
 
-Adds comprehensive unit tests for `StatTile` (trend colour logic) and `StatusDot` (variant labels and accessibility). Both components now sit at **100% statement, branch, function, and line coverage**.
+Hardens all external and data-derived links against **reverse-tabnabbing** (`target="_blank"` without `rel="noopener noreferrer"`) and **unsafe scheme injection** (`javascript:`, `data:`, etc.) in backend-supplied URLs.
 
 ## Changes
 
-### `src/components/__tests__/StatTile.test.tsx`
+### New files
 
-Verifies the double-negative trend colour expression against all four delta/`positiveIsGood` combinations, plus edge cases:
+- **`src/lib/url.ts`** — `safeHref()` helper that accepts `http:`, `https:`, relative (`/`), and hash (`#`) links; rejects `javascript:`, `data:`, `mailto:`, `tel:`, `ftp:`, protocol-relative (`//`), and any malformed/bogus inputs. Returns `{ ok: true, href }` for safe values and `{ ok: false }` for blocked ones.
 
-| Scenario | Expected colour |
-|---|---|
-| `delta > 0`, `positiveIsGood` omitted (default `true`) | emerald (green — good increase) |
-| `delta < 0`, `positiveIsGood` omitted (default `true`) | rose (red — bad decrease) |
-| `delta > 0`, `positiveIsGood: false` | rose (red — bad increase, e.g. error rate) |
-| `delta < 0`, `positiveIsGood: false` | emerald (green — good decrease) |
-| `delta = 0`, `positiveIsGood` omitted | rose (stagnation = bad) |
-| `delta = 0`, `positiveIsGood: false` | emerald (stagnation = ok) |
-| No trend prop | No `<p>` rendered |
-| `delta > 0` | Prefixes with `+` |
-| `delta < 0` | No `+` prefix |
+- **`src/lib/__tests__/url.test.ts`** — 23 test cases covering:
+  - 7 safe patterns (https, http, uppercase scheme, relative paths with/without whitespace, hash links)
+  - 16 unsafe patterns (null, undefined, empty, javascript:, data: with whitespace tricks, protocol-relative, mailto:, tel:, ftp:, chrome:, no-scheme, relative-without-slash, malformed, colon-first, space-in-scheme)
 
-Colour is asserted via Tailwind class matching (`/emerald/` / `/rose/`), and the visible text content (including `▲`/`▼` and `+` prefix) is checked alongside it.
+### Modified files
 
-### `src/components/__tests__/StatusDot.test.tsx`
+- **`src/app/webhooks/page.tsx`** — Backend-supplied webhook URLs are validated through `safeHref()` before rendering as `<a href>`. If validation fails, the URL falls back to plain text instead of becoming a clickable link.
 
-Covers every variant's label and dot colour, accessible markup rules, and custom-label fallback semantics:
+- **`src/app/docs/page.tsx`** — Both the relative OpenAPI link and the external GitHub reference link are validated through `safeHref()` with plain-text fallback on failure.
 
-| Test | What it asserts |
-|---|---|
-| Default labels | `ok` → "Operational", `warn` → "Degraded", `down` → "Down" |
-| Dot colour per variant | `.bg-emerald-500`, `.bg-amber-500`, `.bg-rose-500` |
-| `aria-hidden="true"` on the dot | Colour is never the only cue (WCAG 1.4.1) |
-| Label is **not** `aria-hidden` | Visible text carries the meaning for AT |
-| Custom string label | Overrides the default; dot colour preserved |
-| ReactNode label | Accepts rich children (e.g. `<strong>`) |
-| Empty-string `label=""` | Falls back to the variant default |
-| Explicit `label={undefined}` | Falls back to the variant default |
-| Visible text guard | At least one non-`aria-hidden` span holds non-empty text |
+- **`README.md`** — Added "Link safety convention" section documenting the two rules:
+  1. Every `target="_blank"` link must include `rel="noopener noreferrer"`
+  2. Every data-derived `href` must be validated with `safeHref()`
 
-### JSDoc added
+### Audit (no changes needed — already compliant)
 
-- **`StatTile.tsx`**: Clarified that `positiveIsGood` defaults to `true`, and documented the delta/colour mapping with a table.
-- **`StatusDot.tsx`**: Documented the WCAG 1.4.1 rationale, the three variant defaults, and the `label` fallback behaviour (empty-string, `null`, `undefined`).
+All `<a target="_blank">` links across the codebase were audited and **already** carried `rel="noopener noreferrer"`:
 
-## Test output
+| File | Link | Status |
+|---|---|---|
+| `src/app/page.tsx:63` | `https://stellar.org` | ✅ `rel="noopener noreferrer"` |
+| `src/components/Footer.tsx:27` | `https://discord.gg/eXvRKkgcv` | ✅ `rel="noopener noreferrer"` |
+| `src/app/docs/page.tsx:36` | GitHub reference doc | ✅ `rel="noopener noreferrer"` |
+| `src/app/webhooks/page.tsx:118` | Webhook URL (validated) | ✅ `rel="noopener noreferrer"` |
 
-```
-PASS src/components/__tests__/StatTile.test.tsx
-PASS src/components/__tests__/StatusDot.test.tsx
-Tests:       24 passed, 24 total
+Both `src/app/page.tsx` and `src/components/Footer.tsx` were already compliant and required no changes.
 
-------------------|---------|----------|---------|---------|-------------------
-File              | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
-------------------|---------|----------|---------|---------|-------------------
- StatTile.tsx     |     100 |      100 |     100 |     100 |
- StatusDot.tsx    |     100 |      100 |     100 |     100 |
-------------------|---------|----------|---------|---------|-------------------
-```
+## Security notes
+
+- **Tabnabbing prevention:** Any page opened with `target="_blank"` without `rel="noopener noreferrer"` can redirect the original page via `window.opener.location`. All external links now carry the full `rel` attribute to prevent this.
+- **Scheme injection:** `javascript:` and `data:` URIs in `href` attributes can execute arbitrary code in the context of the page. The `safeHref()` helper strips these before they reach the DOM.
+- **Safe by default:** The helper rejects unknown schemes and malformed URLs, forcing developers to explicitly allow only known-safe patterns.

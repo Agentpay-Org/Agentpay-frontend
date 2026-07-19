@@ -5,6 +5,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { SearchBar } from "@/components/SearchBar";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
+import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
 
 type Service = { serviceId: string; priceStroops: number };
@@ -49,6 +50,14 @@ export default function SearchPage() {
   const hasPendingDebounce = latestInput !== query;
   const isSearching = Boolean(latestInput) && (hasPendingDebounce || loading);
   const visibleItems = query ? items : null;
+
+  const renderedItems = useMemo(() => {
+    if (!visibleItems) return null;
+    return visibleItems.slice(0, MAX_RENDERED_ROWS);
+  }, [visibleItems]);
+
+  const totalVisible = visibleItems?.length ?? 0;
+  const isTruncated = totalVisible > MAX_RENDERED_ROWS;
 
   const handleQueryChange = (value: string) => {
     latestInputRef.current = value.trim();
@@ -130,8 +139,14 @@ export default function SearchPage() {
         <p className="text-sm text-zinc-500">No matches.</p>
       )}
       {!error && visibleItems && visibleItems.length > 0 && (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {visibleItems.map((s) => (
+        <>
+          {isTruncated && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Showing first {MAX_RENDERED_ROWS} of {totalVisible} results.
+            </p>
+          )}
+          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {renderedItems!.map((s) => (
             <li key={s.serviceId} className="py-3 font-mono text-sm">
               <Link
                 href={`/services/${encodeURIComponent(s.serviceId)}`}
@@ -143,6 +158,7 @@ export default function SearchPage() {
             </li>
           ))}
         </ul>
+        </>
       )}
     </main>
   );

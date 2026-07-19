@@ -292,8 +292,8 @@ describe("EventsPage", () => {
     expect(spans[0]).toHaveTextContent("");
   });
 
-  it("caps rendered events at 50 and shows 'showing N of M' note when list exceeds cap", async () => {
-    const largeList = Array.from({ length: 75 }, (_, i) => ({
+  it("caps rendered events at 100 and shows truncation note when list exceeds cap", async () => {
+    const largeList = Array.from({ length: 150 }, (_, i) => ({
       id: `evt-${i}`,
       ts: BASE_TIME.getTime() - i * 1000,
       type: `event.type.${i}`,
@@ -309,24 +309,24 @@ describe("EventsPage", () => {
       expect(screen.getByText("event.type.0")).toBeInTheDocument();
     });
 
-    // Should show exactly 50 events
+    // Should show exactly 100 events
     const listItems = screen.getAllByRole("listitem");
-    expect(listItems).toHaveLength(50);
+    expect(listItems).toHaveLength(100);
 
     // Should show the truncation note
-    expect(screen.getByText("Showing 50 of 75 events.")).toBeInTheDocument();
+    expect(screen.getByText("Showing first 100 of 150 events.")).toBeInTheDocument();
 
-    // First 50 should be rendered
+    // First 100 should be rendered
     expect(screen.getByText("event.type.0")).toBeInTheDocument();
-    expect(screen.getByText("event.type.49")).toBeInTheDocument();
+    expect(screen.getByText("event.type.99")).toBeInTheDocument();
 
-    // 51st and beyond should not be rendered
-    expect(screen.queryByText("event.type.50")).not.toBeInTheDocument();
-    expect(screen.queryByText("event.type.74")).not.toBeInTheDocument();
+    // 101st and beyond should not be rendered
+    expect(screen.queryByText("event.type.100")).not.toBeInTheDocument();
+    expect(screen.queryByText("event.type.149")).not.toBeInTheDocument();
   });
 
   it("does not show truncation note when list is below cap", async () => {
-    const smallList = Array.from({ length: 10 }, (_, i) => ({
+    const smallList = Array.from({ length: 50 }, (_, i) => ({
       id: `evt-${i}`,
       ts: BASE_TIME.getTime() - i * 1000,
       type: `event.type.${i}`,
@@ -343,17 +343,17 @@ describe("EventsPage", () => {
     });
 
     const listItems = screen.getAllByRole("listitem");
-    expect(listItems).toHaveLength(10);
+    expect(listItems).toHaveLength(50);
 
     // Should not show truncation note
-    expect(screen.queryByText(/Showing \d+ of \d+ events\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Showing first \d+ of \d+ events\./)).not.toBeInTheDocument();
   });
 
   it("caps rendered events after filtering", async () => {
-    const largeList = Array.from({ length: 75 }, (_, i) => ({
+    const largeList = Array.from({ length: 150 }, (_, i) => ({
       id: `evt-${i}`,
       ts: BASE_TIME.getTime() - i * 1000,
-      type: i < 60 ? "payment.created" : `other.type.${i}`,
+      type: i < 120 ? "payment.created" : `other.type.${i}`,
       payload: { index: i },
     }));
 
@@ -376,11 +376,11 @@ describe("EventsPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Showing 50 of 60 events.")).toBeInTheDocument();
+      expect(screen.getByText("Showing first 100 of 120 events.")).toBeInTheDocument();
     });
 
     const listItems = screen.getAllByRole("listitem");
-    expect(listItems).toHaveLength(50);
+    expect(listItems).toHaveLength(100);
   });
 
   it("does not cause re-render churn when data is unchanged across polls", async () => {

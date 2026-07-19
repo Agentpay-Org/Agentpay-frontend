@@ -98,6 +98,25 @@ export const EVENT_PAYLOAD_MAX_CHARS = 5000;
 export const EVENT_PAYLOAD_TRUNCATED_MARKER = "\n…(truncated)";
 
 /**
+ * Maximum number of top-level rows rendered in a single pass on any list page.
+ *
+ * This acts as a client-side defence-in-depth cap: if the backend ignores the
+ * page/limit parameters and sends back a huge payload, the browser will only
+ * ever create this many DOM nodes per list.  It is **not** a substitute for
+ * server-side pagination — the backend should still enforce its own limit so
+ * the response size stays reasonable over the wire.
+ *
+ * Chosen above the expected values for every list in the app:
+ *   - events page:     backend limit = 100
+ *   - search page:     backend limit =  50
+ *   - top-agents page: backend limit =  25 per page
+ *
+ * Set to 100 so it covers the largest expected page without firing
+ * a false-positive truncation note in normal operation.
+ */
+export const MAX_RENDERED_ROWS = 100;
+
+/**
  * Safely serialise an arbitrary value to JSON, defending against:
  *   - circular references (replaced with `[Circular]`)
  *   - values JSON can't represent natively, e.g. `BigInt` (replaced with a

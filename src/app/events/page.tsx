@@ -6,7 +6,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { TimeAgo } from "@/components/TimeAgo";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
-import { safeFormatTimestamp, safeStringify } from "@/lib/format";
+import { MAX_RENDERED_ROWS, safeFormatTimestamp, safeStringify } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
 
 type AppEvent = {
@@ -22,8 +22,6 @@ type EventsResponse = {
 };
 
 const EVENT_POLL_INTERVAL_MS = 5000;
-const MAX_RENDERED_EVENTS = 50;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
@@ -97,11 +95,11 @@ export default function EventsPage() {
 
   const renderedItems = useMemo(() => {
     if (!visibleItems) return null;
-    return visibleItems.slice(0, MAX_RENDERED_EVENTS);
+    return visibleItems.slice(0, MAX_RENDERED_ROWS);
   }, [visibleItems]);
 
   const totalVisible = visibleItems?.length ?? 0;
-  const isTruncated = totalVisible > MAX_RENDERED_EVENTS;
+  const isTruncated = totalVisible > MAX_RENDERED_ROWS;
 
   useEffect(() => {
     let cancelled = false;
@@ -226,7 +224,7 @@ export default function EventsPage() {
         <>
           {isTruncated && (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Showing {MAX_RENDERED_EVENTS} of {totalVisible} events.
+              Showing first {MAX_RENDERED_ROWS} of {totalVisible} events.
             </p>
           )}
           <ol className="flex flex-col gap-3 text-sm">

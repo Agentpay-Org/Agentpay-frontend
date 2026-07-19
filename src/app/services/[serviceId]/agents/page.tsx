@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
@@ -74,6 +75,14 @@ export default function ServiceAgentsPage({
     };
   }, [requestedPage, serviceId]);
 
+  const renderedItems = useMemo(() => {
+    if (!items) return null;
+    return items.slice(0, MAX_RENDERED_ROWS);
+  }, [items]);
+
+  const totalVisible = items?.length ?? 0;
+  const isTruncated = totalVisible > MAX_RENDERED_ROWS;
+
   return (
     <main
       id="main-content"
@@ -107,8 +116,14 @@ export default function ServiceAgentsPage({
         />
       )}
       {!loading && items && items.length > 0 && (
-        <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {items.map((a, i) => (
+        <>
+          {isTruncated && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Showing first {MAX_RENDERED_ROWS} of {totalVisible} agents.
+            </p>
+          )}
+          <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {renderedItems!.map((a, i) => (
             <li
               key={a.agent}
               className="flex items-center justify-between py-3 text-sm"
@@ -130,6 +145,7 @@ export default function ServiceAgentsPage({
             </li>
           ))}
         </ol>
+        </>
       )}
       {!loading && !error && (
         <Pagination page={page} pageCount={pageCount} onChange={onPageChange} />

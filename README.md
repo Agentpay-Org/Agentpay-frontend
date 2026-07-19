@@ -375,7 +375,7 @@ When rendering links:
 The `/events` page renders server-supplied JSON payloads with performance safeguards:
 
 - **Per-payload cap:** Each payload is serialised through `safeStringify` (`src/lib/format.ts`) with a hard cap (`EVENT_PAYLOAD_MAX_CHARS`, default 5,000 chars) and a visible `…(truncated)` marker. Circular references, `BigInt`, functions, and malformed timestamps are replaced with safe sentinels so a bad payload can't crash the page.
-- **Render count cap:** The list is capped at 50 rendered rows (`MAX_RENDERED_EVENTS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing 50 of N events." note appears above the list.
+- **Render count cap:** The list is capped at 100 rendered rows (`MAX_RENDERED_ROWS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing first 100 of N events." note appears above the list.
 - **Stable filtering:** The `useMemo` filter dependencies are minimal (`items`, `debouncedQuery`), so background polling does not trigger unnecessary re-renders when the underlying data is unchanged.
 
 ## Changelog empty state
@@ -510,6 +510,27 @@ The `/services/:serviceId/agents` page requests top agents with `page` and
 `EmptyState` when no agents are returned, and uses the shared `Pagination`
 component so the `aria-live` page indicator announces page changes. Agent rows
 link to `/agents/:agent` with the agent identifier encoded.
+
+## Client-side render cap
+
+Several list pages (`/events`, `/search`, `/services/:serviceId/agents`) apply a
+client-side render cap via the shared constant `MAX_RENDERED_ROWS = 100`
+([`src/lib/format.ts`](src/lib/format.ts)).  This is a **defence-in-depth**
+measure: if the backend ignores the `limit` parameter and returns a far larger
+payload, the browser will only ever create this many DOM nodes per list.
+
+When the local list exceeds the cap a truncation note is shown above the list
+(e.g. "Showing first 100 of 150 events.").  The cap is intentionally set above
+every page's expected backend limit (events: 100, search: 50, agents: 25 per
+page) so it never fires in normal operation.
+
+Behaviour is covered by the tests in each page's `.test.tsx`:
+
+| Page | Test file |
+|------|-----------|
+| `/events` | [`src/app/events/page.test.tsx`](src/app/events/page.test.tsx) |
+| `/search` | [`src/app/search/page.test.tsx`](src/app/search/page.test.tsx) |
+| `/services/:serviceId/agents` | [`src/app/services/\[serviceId\]/agents/page.test.tsx`](src/app/services/\[serviceId\]/agents/page.test.tsx) |
 
 ## Commands
 

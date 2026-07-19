@@ -12,8 +12,21 @@ jest.mock("@/lib/resolveApiBase", () => ({
   resolveApiBase: () => mockApiBase,
 }));
 
+jest.mock("@/lib/url", () => {
+  const actual = jest.requireActual("@/lib/url");
+  return { ...actual, safeHref: jest.fn(actual.safeHref) };
+});
+
+import { safeHref } from "@/lib/url";
+
+const safeHrefMock = safeHref as jest.MockedFunction<typeof safeHref>;
+
 beforeEach(() => {
   mockApiBase = "https://api.example.com";
+});
+
+afterEach(() => {
+  safeHrefMock.mockImplementation(jest.requireActual("@/lib/url").safeHref);
 });
 
 describe("DocsPage", () => {
@@ -41,6 +54,17 @@ describe("DocsPage", () => {
     await waitFor(() => {
         expect(screen.queryByText(/POST \/api\/v1\/admin\/{pause,unpause}/i)).not.toBeInTheDocument();
     }, { timeout: 1000 });
+  });
+
+  it("renders link labels as plain text when safeHref rejects the URLs", () => {
+    safeHrefMock.mockReturnValue({ ok: false });
+    render(<DocsPage />);
+
+    const openApiLabel = screen.getByText(/GET \/api\/v1\/openapi\.json/);
+    expect(openApiLabel.closest("a")).toBeNull();
+
+    const referenceLabel = screen.getByText(/dashboard API integration reference/i);
+    expect(referenceLabel.closest("a")).toBeNull();
   });
 
   it("shows EmptyState when no matches", async () => {

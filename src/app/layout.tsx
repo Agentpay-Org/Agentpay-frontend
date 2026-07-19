@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -64,11 +65,19 @@ export const metadata: Metadata = {
  */
 const prePaintScript = `(function(){try{var s=localStorage.getItem("${THEME_STORAGE_KEY}");var d=s==="dark"||(s!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.classList.toggle("light",!d);}catch(e){}})();`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  /*
+   * Read the per-request nonce that src/proxy.ts set on the request
+   * headers so we can stamp it onto the inline pre-paint <script>.
+   * This lets the script execute under the CSP 'nonce-<value>'
+   * mechanism instead of requiring 'unsafe-inline'.
+   */
+  const nonce = (await headers()).get("x-nonce") ?? "";
+
   return (
     /*
      * suppressHydrationWarning: the pre-paint script mutates the `class`
@@ -85,7 +94,10 @@ export default function RootLayout({
          * before the first CSS paint. The content is entirely static
          * (no user input, no interpolated secrets), eliminating XSS risk.
          */}
-        <script dangerouslySetInnerHTML={{ __html: prePaintScript }} />
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: prePaintScript }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

@@ -2,7 +2,7 @@
 
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/ToastProvider";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 type ExportFormat = "json" | "csv";
 
@@ -24,34 +24,85 @@ function filenameFromDisposition(disposition: string | null, fallback: string) {
   }
 }
 
+function toISODate(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+function getFirstOfMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function getDaysAgo(days: number): Date {
+  const now = new Date();
+  now.setDate(now.getDate() - days);
+  return now;
+}
+
+function buildDateRangeFilename(
+  format: ExportFormat,
+  startDate: string,
+  endDate: string,
+): string {
+  if (!startDate || !endDate) return `usage-export.${format}`;
+  return `usage-export_${startDate}_to_${endDate}.${format}`;
+}
+
 export function ExportActions({ apiBase }: Props) {
   const [downloading, setDownloading] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+
+  const [startDate, setStartDate] = useState(() => toISODate(getFirstOfMonth()));
+  const [endDate, setEndDate] = useState(() => toISODate(new Date()));
+
+  const dateRangeError = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    if (endDate < startDate) return "End date must not precede start date.";
+    return null;
+  }, [startDate, endDate]);
+
+  const applyPreset = (days: number) => {
+    const end = new Date();
+    const start = getDaysAgo(days);
+    setStartDate(toISODate(start));
+    setEndDate(toISODate(end));
+  };
+
+  const applyCurrentMonth = () => {
+    setStartDate(toISODate(getFirstOfMonth()));
+    setEndDate(toISODate(new Date()));
+  };
 
   const startDownload = async (format: ExportFormat) => {
     setError(null);
     setDownloading(format);
 
     try {
-      const response = await fetch(`${apiBase}/api/v1/usage/export.${format}`);
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const qs = params.toString();
+      const url = `${apiBase}/api/v1/usage/export.${format}${qs ? `?${qs}` : ""}`;
+
+      const response = await fetch(url);
       if (!response.ok) {
         const body = await response.text().catch(() => "");
         throw new Error(body || `Export failed with status ${response.status}`);
       }
 
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
+      link.href = blobUrl;
       link.download = filenameFromDisposition(
         response.headers.get("content-disposition"),
-        `usage-export.${format}`,
+        buildDateRangeFilename(format, startDate, endDate),
       );
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(blobUrl);
       toast.push(`${format.toUpperCase()} export downloaded.`, "info");
     } catch (err) {
       setError((err as Error).message || "Export failed");
@@ -61,11 +112,67 @@ export function ExportActions({ apiBase }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Date range
+        </legend>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-zinc-500">Start</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              aria-label="Start date"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-zinc-500">End</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              aria-label="End date"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={applyCurrentMonth}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              This month
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset(7)}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Last 7 days
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset(30)}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Last 30 days
+            </button>
+          </div>
+        </div>
+        {dateRangeError && (
+          <p role="alert" className="text-xs text-rose-600">
+            {dateRangeError}
+          </p>
+        )}
+      </fieldset>
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          disabled={downloading !== null}
+          disabled={downloading !== null || dateRangeError !== null}
           aria-busy={downloading === "json" || undefined}
           onClick={() => startDownload("json")}
           className={`${buttonBase} bg-black text-white`}
@@ -74,7 +181,7 @@ export function ExportActions({ apiBase }: Props) {
         </button>
         <button
           type="button"
-          disabled={downloading !== null}
+          disabled={downloading !== null || dateRangeError !== null}
           aria-busy={downloading === "csv" || undefined}
           onClick={() => startDownload("csv")}
           className={`${buttonBase} border border-zinc-300 dark:border-zinc-700`}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@/components/ToastProvider";
 import { ExportActions } from "./ExportActions";
 
@@ -53,7 +54,7 @@ describe("ExportActions", () => {
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        "https://api.example.test/api/v1/usage/export.csv",
+        expect.stringContaining("https://api.example.test/api/v1/usage/export.csv"),
       );
       expect(clickSpy).toHaveBeenCalled();
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:usage-export");
@@ -115,4 +116,141 @@ describe("ExportActions", () => {
       expect(clickSpy).toHaveBeenCalled();
     });
   });
+
+  describe("date range", () => {
+    it("renders start and end date inputs defaulting to current month", () => {
+      renderExportActions();
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      expect(startInput).toBeInTheDocument();
+      expect(endInput).toBeInTheDocument();
+      expect(startInput.value).toBe(toISODate(getFirstOfMonth()));
+      expect(endInput.value).toBe(toISODate(new Date()));
+    });
+
+    it("passes startDate and endDate as query parameters", async () => {
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce(
+        mockSuccessResponse("usage.json"),
+      );
+
+      renderExportActions();
+
+      fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+
+      await waitFor(() => {
+        const calledUrl = (globalThis.fetch as jest.Mock).mock.calls[0][0] as string;
+        expect(calledUrl).toContain("startDate=");
+        expect(calledUrl).toContain("endDate=");
+      });
+    });
+
+    it("shows an error when end date precedes start date", async () => {
+      renderExportActions();
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      fireEvent.change(startInput, { target: { value: "2025-12-01" } });
+      fireEvent.change(endInput, { target: { value: "2025-01-01" } });
+
+      expect(
+        screen.getByText("End date must not precede start date."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Download JSON" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Download CSV" })).toBeDisabled();
+    });
+
+    it("clears the date range error when dates become valid again", () => {
+      renderExportActions();
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      fireEvent.change(startInput, { target: { value: "2025-12-01" } });
+      fireEvent.change(endInput, { target: { value: "2025-01-01" } });
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+
+      fireEvent.change(endInput, { target: { value: "2025-12-31" } });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Download JSON" })).toBeEnabled();
+    });
+
+    it("'Last 7 days' preset sets correct date range", async () => {
+      const user = userEvent.setup();
+      renderExportActions();
+
+      await user.click(screen.getByRole("button", { name: "Last 7 days" }));
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      const expectedStart = new Date();
+      expectedStart.setDate(expectedStart.getDate() - 7);
+
+      expect(startInput.value).toBe(toISODate(expectedStart));
+      expect(endInput.value).toBe(toISODate(new Date()));
+    });
+
+    it("'Last 30 days' preset sets correct date range", async () => {
+      const user = userEvent.setup();
+      renderExportActions();
+
+      await user.click(screen.getByRole("button", { name: "Last 30 days" }));
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      const expectedStart = new Date();
+      expectedStart.setDate(expectedStart.getDate() - 30);
+
+      expect(startInput.value).toBe(toISODate(expectedStart));
+      expect(endInput.value).toBe(toISODate(new Date()));
+    });
+
+    it("'This month' preset resets to current month boundaries", async () => {
+      const user = userEvent.setup();
+      renderExportActions();
+
+      const startInput = screen.getByLabelText("Start date") as HTMLInputElement;
+      const endInput = screen.getByLabelText("End date") as HTMLInputElement;
+
+      fireEvent.change(startInput, { target: { value: "2020-01-01" } });
+      fireEvent.change(endInput, { target: { value: "2020-06-15" } });
+
+      await user.click(screen.getByRole("button", { name: "This month" }));
+
+      expect(startInput.value).toBe(toISODate(getFirstOfMonth()));
+      expect(endInput.value).toBe(toISODate(new Date()));
+    });
+
+    it("falls back to default filename when no date range is provided in disposition", async () => {
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob([""], { type: "application/json" }),
+        headers: { get: () => null },
+      } as Response);
+
+      renderExportActions();
+
+      fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+
+      await waitFor(() => {
+        const link = document.querySelector("a[download]") as HTMLAnchorElement;
+        expect(link).toBeTruthy();
+        expect(link.download).toMatch(/usage-export_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.json/);
+      });
+    });
+  });
 });
+
+function toISODate(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+function getFirstOfMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}

@@ -9,6 +9,7 @@ contract changes.
 | Hook | Source | Status |
 | --- | --- | --- |
 | `useApi` | `src/lib/useApi.ts` | Exported |
+| `useClipboard` | `src/lib/useClipboard.ts` | Exported |
 | `useDebounce` | `src/lib/useDebounce.ts` | Exported |
 | `useLocalState` | `src/lib/useLocalState.ts` | Exported |
 | `usePolling` | `src/lib/usePolling.ts` | Exported |
@@ -279,7 +280,59 @@ browser, such as display modes, dismissed hints, or local filters. Do not store
 secrets, API keys, seed phrases, passwords, or private account material in
 localStorage.
 
+## `useClipboard`
+
+```ts
+function useClipboard(options?: { timeout?: number }): {
+  copy: (text: string) => Promise<boolean>;
+  copied: boolean;
+  error: Error | null;
+};
+```
+
+Import from:
+
+```ts
+import { useClipboard } from "@/lib/useClipboard";
+```
+
+Parameters:
+
+- `options.timeout`: milliseconds to keep the `copied` state as `true`. Defaults to `2000`.
+
+Return shape:
+
+- `copy`: asynchronous function to write text to the clipboard. Returns `true` on success and `false` on failure.
+- `copied`: boolean indicating if the most recent copy succeeded and is still within the timeout window.
+- `error`: the `Error` caught if `navigator.clipboard.writeText` fails or is rejected.
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- The hook manages an internal timer for resetting the `copied` state, which is automatically cleared if a new copy action happens before the timeout expires, or if the component unmounts.
+- `navigator.clipboard` may be unavailable in non-HTTPS contexts or without appropriate permissions. Failures update the `error` state.
+
+Minimal real usage, based on `src/components/CopyButton.tsx`:
+
+```tsx
+"use client";
+
+import { useClipboard } from "@/lib/useClipboard";
+
+export function CopyButton({ value }: { value: string }) {
+  const { copy, copied } = useClipboard({ timeout: 1500 });
+
+  return (
+    <button type="button" onClick={() => copy(value)}>
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+```
+
+Use this hook to extract clipboard interactions and timeout-based state resets from visual components.
+
 ## Coverage Note
 
 This reference covers every hook exported from `src/lib` at the time of writing:
-`useApi`, `usePolling`, `useDebounce`, and `useLocalState`.
+`useApi`, `useClipboard`, `usePolling`, `useDebounce`, and `useLocalState`.

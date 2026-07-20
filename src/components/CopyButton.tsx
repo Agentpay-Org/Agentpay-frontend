@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useClipboard } from "../lib/useClipboard";
 
 /**
  * Copies `value` to the clipboard on click and shows "Copied" for 1500 ms.
@@ -8,16 +8,10 @@ import { useState } from "react";
  * The button carries `aria-live="polite"` so the state change is announced.
  */
 export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
+  const { copy, copied } = useClipboard({ timeout: 1500 });
 
   const onClick = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* ignore — clipboard may be unavailable in non-https contexts */
-    }
+    await copy(value);
   };
 
   return (

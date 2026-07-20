@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import ApiKeysPage from "./page";
 
 const FAKE_KEY = "sk_live_abc123secretvalue";
@@ -236,7 +236,9 @@ it("copies the full key to clipboard", async () => {
     screen.getByRole("button", { name: "Create" }).closest("form")!,
   );
   await waitFor(() => screen.getByRole("button", { name: "Copy" }));
-  fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+  });
   await waitFor(() =>
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(FAKE_KEY),
   );
@@ -271,7 +273,9 @@ it("handles clipboard unavailable without throwing", async () => {
     screen.getByRole("button", { name: "Create" }).closest("form")!,
   );
   await waitFor(() => screen.getByRole("button", { name: "Copy" }));
-  expect(() =>
-    fireEvent.click(screen.getByRole("button", { name: "Copy" })),
-  ).not.toThrow();
+  await expect(
+    act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    })
+  ).resolves.not.toThrow();
 });

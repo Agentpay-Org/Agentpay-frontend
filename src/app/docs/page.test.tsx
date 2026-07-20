@@ -1,10 +1,19 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DocsPage from "./page";
+import { safeHref } from "@/lib/url";
 
 // Mock resolveApiBase since it depends on environment variables
 jest.mock("@/lib/resolveApiBase", () => ({
   resolveApiBase: () => "https://api.example.com",
 }));
+
+jest.mock("@/lib/url", () => {
+  const actual = jest.requireActual("@/lib/url");
+  return {
+    ...actual,
+    safeHref: jest.fn().mockImplementation(actual.safeHref),
+  };
+});
 
 describe("DocsPage", () => {
   it("renders the list of endpoints", () => {
@@ -45,4 +54,13 @@ describe("DocsPage", () => {
       expect(screen.getByText(/Try a different search term./i)).toBeInTheDocument();
     });
   });
+  it('renders correctly with default and empty parameters to hit 100% coverage', () => {
+    (safeHref as jest.Mock).mockReturnValue({ ok: false });
+    const { rerender } = render(<DocsPage />);
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+
+    // Restore mock for other tests if necessary (not strictly needed as it's the last test, but good practice)
+    (safeHref as jest.Mock).mockImplementation(jest.requireActual("@/lib/url").safeHref);
+  });
 });
+

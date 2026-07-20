@@ -111,4 +111,31 @@ describe("useClipboard", () => {
     
     expect(result.current.copied).toBe(false); // Now it's 2000ms after the second call
   });
+
+  it('handles non-Error objects gracefully in catch block', async () => {
+    // Mock clipboard rejection with a string instead of an Error object
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: jest.fn().mockRejectedValue('String rejection error'),
+      },
+      configurable: true,
+    });
+
+    const { result } = renderHook(() => useClipboard());
+
+    await act(async () => {
+      await result.current.copy('test text');
+    });
+
+    expect(result.current.copied).toBe(false);
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.error?.message).toBe('Failed to copy');
+
+    // Restore clipboard
+    Object.defineProperty(navigator, 'clipboard', {
+      value: originalClipboard,
+      configurable: true,
+    });
+  });
 });

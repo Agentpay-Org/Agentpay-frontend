@@ -170,6 +170,55 @@ export function safeStringify(
   );
 }
 
+/** Character used to mark the removed middle section of a truncated id. */
+export const TRUNCATE_ELLIPSIS = "…";
+
+/** Default number of leading characters kept by {@link truncateMiddle}. */
+export const TRUNCATE_HEAD_DEFAULT = 8;
+
+/** Default number of trailing characters kept by {@link truncateMiddle}. */
+export const TRUNCATE_TAIL_DEFAULT = 6;
+
+/**
+ * Truncate a long identifier by collapsing its middle into an ellipsis while
+ * preserving both ends, e.g. `GABCDEFG…XYZ123`. Agent and service ids only
+ * differ at the edges, so keeping the tail visible is what makes two truncated
+ * ids distinguishable — unlike CSS `text-overflow: ellipsis`, which hides it.
+ *
+ * The input is returned unchanged when it already fits the budget
+ * (`head + tail + 1` characters, the `1` being the ellipsis itself), so short
+ * ids never gain a marker. Counting is code-point aware so surrogate pairs are
+ * never split in half. Negative or fractional `head` / `tail` values are
+ * clamped to non-negative integers.
+ *
+ * Callers rendering the truncated form should expose the full value through
+ * `title` and an accessible label (e.g. `aria-label`) so hover and assistive
+ * technology both see the complete identifier.
+ *
+ * @param value - The identifier to truncate.
+ * @param head - Leading characters to keep. Defaults to {@link TRUNCATE_HEAD_DEFAULT}.
+ * @param tail - Trailing characters to keep. Defaults to {@link TRUNCATE_TAIL_DEFAULT}.
+ * @returns The original string, or `head` chars + `…` + `tail` chars.
+ */
+export function truncateMiddle(
+  value: string,
+  head: number = TRUNCATE_HEAD_DEFAULT,
+  tail: number = TRUNCATE_TAIL_DEFAULT
+): string {
+  const safeHead = Number.isFinite(head) ? Math.max(0, Math.floor(head)) : TRUNCATE_HEAD_DEFAULT;
+  const safeTail = Number.isFinite(tail) ? Math.max(0, Math.floor(tail)) : TRUNCATE_TAIL_DEFAULT;
+
+  // Split into code points so astral characters (emoji, some CJK) are kept
+  // whole instead of being cut between surrogate halves.
+  const chars = Array.from(value);
+  const budget = safeHead + safeTail + TRUNCATE_ELLIPSIS.length;
+  if (chars.length <= budget) return value;
+
+  const headPart = chars.slice(0, safeHead).join("");
+  const tailPart = safeTail > 0 ? chars.slice(-safeTail).join("") : "";
+  return `${headPart}${TRUNCATE_ELLIPSIS}${tailPart}`;
+}
+
 type TimestampInput = number | string | null | undefined;
 
 /**

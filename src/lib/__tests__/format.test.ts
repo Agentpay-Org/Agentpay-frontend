@@ -6,6 +6,10 @@ import {
   formatTime,
   safeFormatTimestamp,
   safeStringify,
+  TRUNCATE_ELLIPSIS,
+  TRUNCATE_HEAD_DEFAULT,
+  TRUNCATE_TAIL_DEFAULT,
+  truncateMiddle,
 } from "../format";
 
 describe("format", () => {
@@ -159,6 +163,62 @@ describe("safeStringify", () => {
 
   it("handles custom toJSON returning undefined correctly", () => {
     expect(safeStringify({ toJSON: () => undefined })).toBe('"[undefined]"');
+  });
+});
+
+describe("truncateMiddle", () => {
+  const stellarId = "GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUV"; // Stellar-style id
+
+  it("collapses the middle of a long identifier keeping both ends", () => {
+    expect(truncateMiddle(stellarId, 8, 6)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("uses the documented defaults when head/tail are omitted", () => {
+    expect(truncateMiddle(stellarId)).toBe(
+      truncateMiddle(stellarId, TRUNCATE_HEAD_DEFAULT, TRUNCATE_TAIL_DEFAULT)
+    );
+    expect(truncateMiddle(stellarId)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("returns the input unchanged when it fits the budget", () => {
+    // budget = head + tail + 1 (the ellipsis)
+    expect(truncateMiddle("abc", 8, 6)).toBe("abc");
+    expect(truncateMiddle("exactly-15-char", 8, 6)).toBe("exactly-15-char"); // length 15 === 8 + 6 + 1
+    expect(truncateMiddle("", 8, 6)).toBe("");
+  });
+
+  it("truncates once the value exceeds the budget by a single character", () => {
+    const sixteen = "exactly-16-chars";
+    expect(sixteen).toHaveLength(16);
+    expect(truncateMiddle(sixteen, 8, 6)).toBe(`exactly-${TRUNCATE_ELLIPSIS}-chars`);
+    expect(truncateMiddle(sixteen, 8, 6)).toHaveLength(15);
+  });
+
+  it("supports asymmetric and zero head/tail budgets", () => {
+    expect(truncateMiddle("abcdefghij", 3, 0)).toBe("abc…");
+    expect(truncateMiddle("abcdefghij", 0, 3)).toBe("…hij");
+    expect(truncateMiddle("abcdefghij", 0, 0)).toBe("…");
+  });
+
+  it("clamps negative and fractional head/tail values", () => {
+    expect(truncateMiddle("abcdefghij", -5, -5)).toBe("…");
+    expect(truncateMiddle("abcdefghij", 2.9, 1.9)).toBe("ab…j");
+  });
+
+  it("falls back to defaults for non-finite head/tail values", () => {
+    expect(truncateMiddle(stellarId, NaN, Infinity)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("never splits surrogate pairs (counts code points, not UTF-16 units)", () => {
+    const emojiId = "😀😁😂🤣😃😄😅😆😉😊"; // 10 code points, 20 UTF-16 units
+    const result = truncateMiddle(emojiId, 2, 2);
+    expect(result).toBe("😀😁…😉😊");
+    // No lone surrogates anywhere in the output.
+    expect(result).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+  });
+
+  it("keeps short multi-byte strings untouched", () => {
+    expect(truncateMiddle("🚀🌕", 8, 6)).toBe("🚀🌕");
   });
 });
 

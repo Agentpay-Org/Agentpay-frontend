@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/apiClient";
 import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
+import { truncateMiddle } from "@/lib/format";
 
 type Service = { serviceId: string; priceStroops: number };
 type ServicesResponse = {
@@ -115,7 +116,13 @@ export default function ServicesPage() {
                 href={`/services/${encodeURIComponent(s.serviceId)}`}
                 className="-mx-4 flex items-center justify-between rounded-lg px-4 py-3 transition-colors hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-900"
               >
-                <span className="font-mono text-sm">{s.serviceId}</span>
+                <span
+                  className="font-mono text-sm"
+                  title={s.serviceId}
+                  aria-label={s.serviceId}
+                >
+                  {truncateMiddle(s.serviceId)}
+                </span>
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
                   {s.priceStroops} stroops / request
                 </span>

@@ -100,6 +100,53 @@ Relaxing CSP or hardening headers should be treated as a security-sensitive chan
 - Never remove both `X-Frame-Options: DENY` and `frame-ancestors 'none'` unless the dashboard is intentionally becoming embeddable; if embedding is required, allow only the exact parent origins.
 - Re-run the source cross-check and update this reference doc so future contributors can audit the change.
 
+## Hardened curl example generation on the docs page
+
+The docs page (`src/app/docs/page.tsx`) renders copyable curl commands built in
+`src/app/docs/endpoints.ts` by interpolating the API base URL. That value
+originates from `NEXT_PUBLIC_AGENTPAY_API_BASE`, so a misconfigured or hostile
+environment value could otherwise end up inside a command a user pastes into a
+terminal — e.g. `https://api.example.com/$(rm -rf ~)` would inject a command
+substitution into the copied string.
+
+`getSections()` defends against this with `sanitizeBaseUrl()`, which applies
+the same rules as `resolveApiBase()` before any interpolation:
+
+- trims whitespace and falls back to `DEFAULT_API_BASE` when empty;
+- requires the value to parse as an absolute URL;
+- accepts only `http:`/`https:` protocols;
+- in production refuses `http:` on non-localhost hosts (`localhost`,
+  `127.0.0.1` stay allowed);
+- normalises to origin + pathname without trailing slashes, which drops
+  embedded credentials, query strings, and fragments.
+
+On top of the `resolveApiBase` parity rules, the normalised URL is matched
+against a strict allowlist (`[A-Za-z0-9\-._~%:/]`). Any character a shell could
+interpret — whitespace, quotes, `$`, backticks, backslashes, `;`, `&`, `|`,
+`<`, `>`, parentheses, braces, glob characters — causes the value to be
+**rejected**, and the examples are generated against `DEFAULT_API_BASE`
+instead. Characters the WHATWG URL parser percent-encodes during parsing
+(backtick, `"`, space) reach the command only as harmless `%xx` literals.
+
+Two differences from `resolveApiBase` are intentional:
+
+1. `resolveApiBase` throws on invalid input; `sanitizeBaseUrl` degrades to the
+   safe default because the docs page only renders examples and should not
+   crash on a bad env var that other layers may still surface.
+2. The extra shell-metacharacter allowlist exists because a URL can be
+   perfectly valid (RFC 3986 allows `$`, `(`, `)`, `;`, `'` in paths) and
+   still be dangerous inside a shell command.
+
+Every generated command also wraps the base URL in double quotes. Because the
+allowlist excludes `$`, backtick, `\`, and `"`, the quoted string cannot be
+expanded or broken out of by any POSIX-compatible shell.
+
+Malicious-input coverage lives in `src/app/docs/page.test.tsx`: it asserts the
+page never renders a command containing `$(`/metacharacters, and unit-tests the
+reject, percent-encode, normalisation, and production-http paths of
+`sanitizeBaseUrl` directly. Keep those tests and this section in sync when
+changing `endpoints.ts`.
+
 ## Maintenance checklist
 
 When changing `src/lib/securityHeaders.ts` or `src/proxy.ts`, confirm:

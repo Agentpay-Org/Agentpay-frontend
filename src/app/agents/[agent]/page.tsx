@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
+import { PageShell } from "@/components/PageShell";
 
 type Usage = { agent: string; items: { serviceId: string; total: number }[] };
 
@@ -17,33 +19,27 @@ export default function AgentDetailPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     apiGet<Usage>(`/api/v1/agents/${encodeURIComponent(agent)}/usage`)
-      .then((b) => setItems(b.items))
-      .catch((e) => setError(e.message));
+      .then((b) => { if (!cancelled) setItems(b.items); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
     apiGet<{ total: number }>(
       `/api/v1/agents/${encodeURIComponent(agent)}/total`
     )
-      .then((b) => setTotal(b.total))
+      .then((b) => { if (!cancelled) setTotal(b.total); })
       .catch(() => {
         /* total is optional */
       });
+    return () => { cancelled = true; };
   }, [agent]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <Link href="/agents" className="text-sm text-zinc-500 hover:underline">
         ← Back to agents
       </Link>
       <h1 className="text-3xl font-semibold tracking-tight font-mono">{agent}</h1>
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
       {total !== null && (
         <p className="text-sm">
           Lifetime total: <strong>{total}</strong> requests
@@ -62,6 +58,6 @@ export default function AgentDetailPage({
           ))}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }

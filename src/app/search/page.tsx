@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiGet } from "@/lib/apiClient";
 import { useDebounce } from "@/lib/useDebounce";
+import { PageShell } from "@/components/PageShell";
 import { SearchBar } from "@/components/SearchBar";
 
 type Service = { serviceId: string; priceStroops: number };
@@ -15,19 +16,17 @@ export default function SearchPage() {
 
   useEffect(() => {
     if (!debounced) return;
+    let cancelled = false;
     apiGet<{ services: Service[] }>(
       `/api/v1/services?q=${encodeURIComponent(debounced)}&limit=50`
     )
-      .then((b) => setItems(b.services))
-      .catch(() => setItems([]));
+      .then((b) => { if (!cancelled) setItems(b.services); })
+      .catch(() => { if (!cancelled) setItems([]); });
+    return () => { cancelled = true; };
   }, [debounced]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Search</h1>
       <SearchBar value={q} onChange={setQ} placeholder="Search services…" />
       {visibleItems && visibleItems.length === 0 && (
@@ -45,6 +44,6 @@ export default function SearchPage() {
           ))}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }

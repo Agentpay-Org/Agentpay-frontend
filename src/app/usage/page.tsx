@@ -1,6 +1,7 @@
 "use client";
 
 import { Spinner } from "@/components/Spinner";
+import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
 import type { ApiError } from "@/lib/apiClient";
 import { apiGet, apiPost } from "@/lib/apiClient";
@@ -100,11 +101,7 @@ export default function UsagePage() {
   };
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-screen max-w-2xl flex-col gap-12 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="2xl" gap="12" className="min-h-screen">
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Usage metering</h1>
         <p className="text-zinc-600 dark:text-zinc-400">
@@ -213,6 +210,6 @@ export default function UsagePage() {
           </p>
         )}
       </section>
-    </main>
+    </PageShell>
   );
 }

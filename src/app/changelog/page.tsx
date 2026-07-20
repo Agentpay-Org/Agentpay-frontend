@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
 import { useApi } from "@/lib/useApi";
 
@@ -11,11 +12,7 @@ export default function ChangelogPage() {
   const entries = state.status === "ok" ? state.data.entries : null;
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Changelog</h1>
       {state.status === "loading" && <Spinner label="Loading changelog" />}
       {state.status === "error" && (
@@ -45,6 +42,6 @@ export default function ChangelogPage() {
           ))}
         </ol>
       )}
-    </main>
+    </PageShell>
   );
 }

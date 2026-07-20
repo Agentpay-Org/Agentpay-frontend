@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch } from "@/lib/apiClient";
+import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
 import { parseNonNegativeInt } from "@/lib/validateNumber";
 
@@ -20,9 +21,11 @@ export default function EditServicePage({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     apiGet<Service>(`/api/v1/services/${encodeURIComponent(serviceId)}`)
-      .then((s) => setPrice(String(s.priceStroops)))
-      .catch((e) => setError(e.message));
+      .then((s) => { if (!cancelled) setPrice(String(s.priceStroops)); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
   }, [serviceId]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -49,11 +52,7 @@ export default function EditServicePage({
   };
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="xl">
       <h1 className="text-3xl font-semibold tracking-tight">Edit price</h1>
       <p className="font-mono text-sm text-zinc-500">{serviceId}</p>
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
@@ -74,6 +73,6 @@ export default function EditServicePage({
         </button>
 
       </form>
-    </main>
+    </PageShell>
   );
 }

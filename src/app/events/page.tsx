@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AlertError } from "@/components/AlertError";
 import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { SearchBar } from "@/components/SearchBar";
 import { TimeAgo } from "@/components/TimeAgo";
 import { apiGet } from "@/lib/apiClient";
@@ -137,11 +139,7 @@ export default function EventsPage() {
     : "Incoming events will appear here once the backend records them.";
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-4xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="4xl">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">Event log</h1>
@@ -173,11 +171,7 @@ export default function EventsPage() {
         </p>
       </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
 
       {loading && !error && <p>Loading…</p>}
 
@@ -242,6 +236,6 @@ export default function EventsPage() {
           </ol>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }

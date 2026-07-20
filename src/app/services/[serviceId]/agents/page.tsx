@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
+import { PageShell } from "@/components/PageShell";
 
 type TopAgents = { serviceId: string; items: { agent: string; total: number }[] };
 
@@ -16,19 +18,17 @@ export default function ServiceAgentsPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     apiGet<TopAgents>(
       `/api/v1/services/${encodeURIComponent(serviceId)}/agents/top?limit=25`
     )
-      .then((b) => setItems(b.items))
-      .catch((e) => setError(e.message));
+      .then((b) => { if (!cancelled) setItems(b.items); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
   }, [serviceId]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <Link
         href={`/services/${encodeURIComponent(serviceId)}`}
         className="text-sm text-zinc-500 hover:underline"
@@ -38,11 +38,7 @@ export default function ServiceAgentsPage({
       <h1 className="text-3xl font-semibold tracking-tight">
         Top agents <span className="font-mono text-base text-zinc-500">{serviceId}</span>
       </h1>
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
       {items && items.length === 0 && (
         <p className="text-sm text-zinc-500">No agents on this service yet.</p>
       )}
@@ -63,6 +59,6 @@ export default function ServiceAgentsPage({
           ))}
         </ol>
       )}
-    </main>
+    </PageShell>
   );
 }

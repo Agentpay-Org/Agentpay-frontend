@@ -161,6 +161,24 @@ type AppEvent = {
 };
 ```
 
+### CSV export (client-side)
+
+The **Export CSV** button on the Events page does not call the backend — it
+serialises the currently filtered `AppEvent[]` (the full filtered set, not
+just the 50 rows rendered on screen) into an RFC 4180 CSV string entirely in
+the browser and triggers a download via an object URL. Disabled while the
+page is loading or the filtered set is empty. Columns: `id, timestamp, type,
+payload` (`payload` is JSON-stringified). Each field is escaped:
+
+- Values starting with `=`, `+`, `-`, `@`, a tab, or a carriage return are
+  prefixed with `'` to defuse spreadsheet formula injection.
+- Values containing a comma, double quote, or newline are wrapped in double
+  quotes, with embedded quotes doubled.
+
+The file is written with a UTF-8 byte-order mark so Excel opens it with the
+correct character set. Source: `events/page.tsx` (`eventsToCsv`,
+`escapeCsvField`, `downloadEventsCsv`).
+
 ## Changelog
 
 | Method & path | Type | Request body | Response shape | Source |

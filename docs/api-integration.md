@@ -73,8 +73,19 @@ type TopAgents = { serviceId: string; items: { agent: string; total: number }[] 
 | --- | --- | --- | --- | --- |
 | `POST /api/v1/usage` | Write | `{ agent: string; serviceId: string; requests: number }` | `{ total: number }` | `usage/page.tsx` (raw `fetch`) |
 | `GET /api/v1/usage/{agent}/{serviceId}` | Read | — | `{ agent: string; serviceId: string; total: number }` | `usage/page.tsx` (raw `fetch`) |
-| `GET /api/v1/usage/export.json` | Read | — | file download (JSON), opened via `<a href>` | `export/page.tsx` |
-| `GET /api/v1/usage/export.csv` | Read | — | file download (CSV), opened via `<a href>` | `export/page.tsx` |
+| `GET /api/v1/usage/export.json` | Read | — | file download (JSON), opened via `<a href>` | `export/ExportActions.tsx` |
+| `GET /api/v1/usage/export.csv` | Read | — | file download (CSV), opened via `<a href>` | `export/ExportActions.tsx` |
+
+Both export endpoints accept optional query parameters for date-range filtering:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `startDate` | `string` (ISO date, e.g. `2025-01-01`) | Inclusive start of the date range |
+| `endDate` | `string` (ISO date, e.g. `2025-12-31`) | Inclusive end of the date range |
+
+Example: `GET /api/v1/usage/export.json?startDate=2025-01-01&endDate=2025-01-31`
+
+The UI defaults to the current month and provides quick presets for the last 7 and 30 days.
 
 ## Stats
 

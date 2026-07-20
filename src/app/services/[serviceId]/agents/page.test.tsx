@@ -152,4 +152,72 @@ describe("ServiceAgentsPage", () => {
       screen.queryByRole("navigation", { name: /pagination/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows truncation note when items exceed the render cap", async () => {
+    const manyAgents = Array.from({ length: 101 }, (_, i) => ({
+      agent: `agent-${i}`,
+      total: i * 10,
+    }));
+    apiGetMock.mockResolvedValueOnce({
+      items: manyAgents,
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Showing first 100 of 101 agents.")).toBeInTheDocument();
+    });
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(100);
+    expect(screen.getByText("agent-0")).toBeInTheDocument();
+    expect(screen.getByText("agent-99")).toBeInTheDocument();
+    expect(screen.queryByText("agent-100")).not.toBeInTheDocument();
+  });
+
+  it("does not truncate at exactly the cap", async () => {
+    const exactAgents = Array.from({ length: 100 }, (_, i) => ({
+      agent: `agent-${i}`,
+      total: i * 10,
+    }));
+    apiGetMock.mockResolvedValueOnce({
+      items: exactAgents,
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("agent-0")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(/Showing first \d+ of \d+ agents\./),
+    ).not.toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(100);
+  });
+
+  it("does not truncate below the cap", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      items: [agent("small-agent", 5)],
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("small-agent")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(/Showing first \d+ of \d+ agents\./),
+    ).not.toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(1);
+  });
 });

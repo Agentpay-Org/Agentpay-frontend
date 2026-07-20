@@ -238,4 +238,63 @@ describe("SearchPage", () => {
     expect(screen.getByText("fast-service")).toBeInTheDocument();
     expect(screen.queryByText("slow-service")).not.toBeInTheDocument();
   });
+
+  it("shows truncation note when results exceed the render cap", async () => {
+    const manyServices = Array.from({ length: 101 }, (_, i) => ({
+      serviceId: `svc-${i}`,
+      priceStroops: i * 100,
+    }));
+    apiGetMock.mockResolvedValue({ services: manyServices });
+
+    render(<SearchPage />);
+    await enterSearchTerm("svc");
+
+    await waitFor(() => {
+      expect(screen.getByText("Showing first 100 of 101 results.")).toBeInTheDocument();
+    });
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(100);
+    expect(screen.getByText("svc-0")).toBeInTheDocument();
+    expect(screen.getByText("svc-99")).toBeInTheDocument();
+    expect(screen.queryByText("svc-100")).not.toBeInTheDocument();
+  });
+
+  it("does not show truncation note when results exactly equal the cap", async () => {
+    const exactServices = Array.from({ length: 100 }, (_, i) => ({
+      serviceId: `svc-${i}`,
+      priceStroops: i * 100,
+    }));
+    apiGetMock.mockResolvedValue({ services: exactServices });
+
+    render(<SearchPage />);
+    await enterSearchTerm("svc");
+
+    await waitFor(() => {
+      expect(screen.getByText("svc-0")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/Showing first \d+ of \d+ results\./)).not.toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(100);
+  });
+
+  it("does not show truncation note when results are below the cap", async () => {
+    const fewServices = Array.from({ length: 5 }, (_, i) => ({
+      serviceId: `svc-${i}`,
+      priceStroops: i * 100,
+    }));
+    apiGetMock.mockResolvedValue({ services: fewServices });
+
+    render(<SearchPage />);
+    await enterSearchTerm("svc");
+
+    await waitFor(() => {
+      expect(screen.getByText("svc-0")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/Showing first \d+ of \d+ results\./)).not.toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(5);
+  });
 });

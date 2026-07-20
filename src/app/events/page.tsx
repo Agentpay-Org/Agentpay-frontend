@@ -23,9 +23,70 @@ type EventsResponse = {
 
 const EVENT_POLL_INTERVAL_MS = 5000;
 const MAX_RENDERED_EVENTS = 50;
+const CSV_HEADERS = ["id", "timestamp", "type", "payload"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
+}
+
+/**
+ * Characters that Excel/Sheets/LibreOffice interpret as the start of a
+ * formula when a cell is opened. Prefixing with a leading apostrophe forces
+ * the value to be treated as text, neutralising CSV-formula-injection.
+ */
+const CSV_FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
+
+/**
+ * Escape a single CSV field per RFC 4180: guard against formula injection,
+ * then quote the field (doubling embedded quotes) if it contains a comma,
+ * quote, or newline.
+ */
+function escapeCsvField(value: string): string {
+  let field = CSV_FORMULA_PREFIX_RE.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(field)) {
+    field = `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
+/** Serialise events to an RFC 4180 CSV string (CRLF line endings, header row). */
+function eventsToCsv(events: AppEvent[]): string {
+  const rows = events.map((event) =>
+    [
+      event.id,
+      safeFormatTimestamp(event.ts),
+      event.type,
+      safeStringify(event.payload, Infinity),
+    ]
+      .map((field) => escapeCsvField(field))
+      .join(","),
+  );
+  return [CSV_HEADERS.join(","), ...rows].join("\r\n");
+}
+
+function csvExportFilename(): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `events-${stamp}.csv`;
+}
+
+/** UTF-8 byte-order mark so Excel opens the exported CSV with the right charset. */
+const BOM = String.fromCharCode(0xfeff);
+
+/**
+ * Trigger a browser download of the given events as CSV. A UTF-8 BOM is
+ * prepended so Excel opens the file with the correct character set.
+ */
+function downloadEventsCsv(events: AppEvent[]): void {
+  const csv = eventsToCsv(events);
+  const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = csvExportFilename();
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 /**
@@ -102,6 +163,12 @@ export default function EventsPage() {
 
   const totalVisible = visibleItems?.length ?? 0;
   const isTruncated = totalVisible > MAX_RENDERED_EVENTS;
+  const exportDisabled = loading || totalVisible === 0;
+
+  const handleExportCsv = () => {
+    if (!visibleItems || visibleItems.length === 0) return;
+    downloadEventsCsv(visibleItems);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -169,15 +236,26 @@ export default function EventsPage() {
             opt into live refreshes when you need to watch a stream.
           </p>
         </div>
-        <button
-          type="button"
-          aria-pressed={autoRefresh}
-          aria-label="Auto-refresh event log"
-          onClick={() => setAutoRefresh((next) => !next)}
-          className="inline-flex items-center justify-center rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
-        >
-          Auto-refresh {autoRefresh ? "on" : "off"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={exportDisabled}
+            aria-label="Export filtered events as CSV"
+            onClick={handleExportCsv}
+            className="inline-flex items-center justify-center rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            aria-pressed={autoRefresh}
+            aria-label="Auto-refresh event log"
+            onClick={() => setAutoRefresh((next) => !next)}
+            className="inline-flex items-center justify-center rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
+          >
+            Auto-refresh {autoRefresh ? "on" : "off"}
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

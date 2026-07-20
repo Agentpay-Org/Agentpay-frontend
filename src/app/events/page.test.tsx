@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import EventsPage from "./page";
+import { safeFormatTimestamp } from "@/lib/format";
 
 type EventRow = {
   id: string;
@@ -63,6 +64,279 @@ describe("EventsPage", () => {
     globalThis.fetch = originalFetch;
     jest.useRealTimers();
     jest.restoreAllMocks();
+  });
+
+  describe("CSV export", () => {
+    // jsdom's Blob implementation doesn't support `.text()`, so a capturing
+    // stub records what the page constructs the Blob with instead of
+    // relying on reading the Blob back out.
+    class CapturingBlob {
+      parts: string[];
+      type: string;
+      constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+        this.parts = parts as string[];
+        this.type = options?.type ?? "";
+      }
+    }
+
+    const originalBlob = global.Blob;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    let clickSpy: jest.SpyInstance;
+    let createObjectURLMock: jest.Mock;
+
+    beforeEach(() => {
+      clickSpy = jest
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation();
+      global.Blob = CapturingBlob as unknown as typeof Blob;
+      createObjectURLMock = jest.fn(() => "blob:events-export");
+      URL.createObjectURL = createObjectURLMock as unknown as typeof URL.createObjectURL;
+      URL.revokeObjectURL = jest.fn();
+    });
+
+    afterEach(() => {
+      clickSpy.mockRestore();
+      global.Blob = originalBlob;
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    function exportButton() {
+      return screen.getByRole("button", { name: /export filtered events as csv/i });
+    }
+
+    function exportedBlob(): CapturingBlob {
+      return createObjectURLMock.mock.calls[0][0] as CapturingBlob;
+    }
+
+    function exportedCsvText(): string {
+      const raw = exportedBlob().parts.join("");
+      // Strip the leading UTF-8 BOM before asserting on content.
+      return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+    }
+
+    it("disables the export button while loading", async () => {
+      let resolveFetch: (value: Response) => void = () => {};
+      const fetchPromise = new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+      globalThis.fetch = jest.fn(() => fetchPromise) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      expect(exportButton()).toBeDisabled();
+
+      await act(async () => {
+        resolveFetch(jsonResponse({ items: FIRST_BATCH }));
+      });
+
+      await waitFor(() => {
+        expect(exportButton()).toBeEnabled();
+      });
+    });
+
+    it("disables the export button when the filtered set is empty", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: FIRST_BATCH }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+      expect(exportButton()).toBeEnabled();
+
+      const filter = screen.getByRole("searchbox", {
+        name: /filter events by type/i,
+      });
+      fireEvent.change(filter, { target: { value: "does-not-exist" } });
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+      });
+
+      await waitFor(() => {
+        expect(exportButton()).toBeDisabled();
+      });
+    });
+
+    it("does not download anything when clicked while disabled", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: [] }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(exportButton()).toBeDisabled();
+      });
+
+      fireEvent.click(exportButton());
+
+      expect(createObjectURLMock).not.toHaveBeenCalled();
+      expect(clickSpy).not.toHaveBeenCalled();
+    });
+
+    it("downloads a CSV of the currently filtered events with a header row", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: FIRST_BATCH }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+
+      fireEvent.click(exportButton());
+
+      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:events-export");
+
+      const csv = exportedCsvText();
+      const lines = csv.split("\r\n");
+      expect(lines[0]).toBe("id,timestamp,type,payload");
+      expect(lines).toHaveLength(1 + FIRST_BATCH.length);
+      expect(lines[1]).toContain("evt-1");
+      expect(lines[1]).toContain("payment.created");
+      expect(lines[1]).toContain(safeFormatTimestamp(FIRST_BATCH[0].ts));
+    });
+
+    it("exports only the filtered subset, not the full unfiltered list", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: FIRST_BATCH }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+
+      const filter = screen.getByRole("searchbox", {
+        name: /filter events by type/i,
+      });
+      fireEvent.change(filter, { target: { value: "payment.failed" } });
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText("payment.created")).not.toBeInTheDocument();
+      });
+
+      fireEvent.click(exportButton());
+
+      const csv = exportedCsvText();
+      const lines = csv.split("\r\n");
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain("payment.failed");
+    });
+
+    it("exports events beyond the 50-row on-screen render cap", async () => {
+      const largeList = Array.from({ length: 75 }, (_, i) => ({
+        id: `evt-${i}`,
+        ts: BASE_TIME.getTime() - i * 1000,
+        type: "bulk.event",
+        payload: { index: i },
+      }));
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: largeList }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Showing 50 of 75 events.")).toBeInTheDocument();
+      });
+
+      fireEvent.click(exportButton());
+
+      const csv = exportedCsvText();
+      const lines = csv.split("\r\n");
+      expect(lines).toHaveLength(1 + 75);
+      expect(csv).toContain("evt-74");
+    });
+
+    it("escapes embedded commas, quotes, and newlines and guards formula-injection prefixes", async () => {
+      // "id" starts with a formula-trigger char ("="); "type" carries a
+      // comma, an embedded quote, and a newline. Keeping these on raw
+      // (non-JSON) fields makes the expected escaping unambiguous — the
+      // payload column goes through safeStringify separately and is
+      // exercised by the other export tests.
+      const trickyEvents = [
+        {
+          id: "=cmd|' /c calc'!A1",
+          ts: BASE_TIME.getTime(),
+          type: 'csv,injection "quoted"\nvalue',
+          payload: { plain: "ok" },
+        },
+      ];
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: trickyEvents }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(exportButton()).toBeEnabled();
+      });
+
+      fireEvent.click(exportButton());
+
+      const csv = exportedCsvText();
+
+      // A field that starts with "=" is prefixed with an apostrophe so
+      // spreadsheet software treats it as text, not a formula.
+      expect(csv).toContain("'=cmd|' /c calc'!A1");
+      // A field with a comma, an embedded quote, and a newline is wrapped in
+      // quotes, with the embedded quote doubled per RFC 4180.
+      expect(csv).toContain('"csv,injection ""quoted""\nvalue"');
+      // The overall row count must still be exactly header + 1 data row —
+      // the embedded newline must not be interpreted as a new CSV record.
+      expect(csv.split("\r\n")).toHaveLength(2);
+    });
+
+    it("prepends a UTF-8 BOM and uses a text/csv blob type", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: FIRST_BATCH.slice(0, 1) }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+
+      fireEvent.click(exportButton());
+
+      const blob = exportedBlob();
+      expect(blob.type).toBe("text/csv;charset=utf-8;");
+      const raw = blob.parts.join("");
+      expect(raw.charCodeAt(0)).toBe(0xfeff);
+    });
+
+    it("sets a .csv download filename on the anchor", async () => {
+      globalThis.fetch = jest.fn(async () =>
+        jsonResponse({ items: FIRST_BATCH.slice(0, 1) }),
+      ) as unknown as typeof globalThis.fetch;
+
+      render(<EventsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+
+      fireEvent.click(exportButton());
+
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const anchor = clickSpy.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toMatch(/^events-.*\.csv$/);
+    });
   });
 
   it("renders events, filters by type, and shows an empty state when nothing matches", async () => {

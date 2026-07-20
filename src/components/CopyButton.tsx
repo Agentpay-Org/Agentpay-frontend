@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+/** Duration (ms) the "Copied" label is shown before reverting. */
+const COPied_MS = 1500;
 
 /**
  * Copies `value` to the clipboard on click and shows "Copied" for 1500 ms.
@@ -9,17 +12,29 @@ import { useState } from "react";
  * The button carries `aria-live="polite"` so the state change is announced
  * to assistive-technology users.
  *
+ * The revert timer is stored in a ref so that rapid clicks reset the
+ * countdown rather than stacking independent timers, and it is cleared on
+ * unmount to prevent stale setState calls.
+ *
  * @param value - The string written to `navigator.clipboard.writeText`.
  * @param label - Visible button label before copying (defaults to `"Copy"`).
  */
 export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const onClick = async () => {
     try {
       await navigator.clipboard.writeText(value);
+      if (timerRef.current) clearTimeout(timerRef.current);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      timerRef.current = setTimeout(() => setCopied(false), COPied_MS);
     } catch {
       /* ignore — clipboard may be unavailable in non-https contexts */
     }

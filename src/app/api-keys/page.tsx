@@ -8,12 +8,12 @@ import { CopyButton } from "@/components/CopyButton";
 type KeyItem = { prefix: string; label: string; createdAt: number };
 
 export default function ApiKeysPage() {
-  const [items, setItems] = useState(null as KeyItem[] | null);
+  const [items, setItems] = useState<KeyItem[] | null>(null);
   const [label, setLabel] = useState("");
-  const [created, setCreated] = useState(null as string | null);
+  const [created, setCreated] = useState<string | null>(null);
   const [showFull, setShowFull] = useState(false);
-  const [error, setError] = useState(null as string | null);
-  const [pendingRevoke, setPendingRevoke] = useState(null as KeyItem | null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
 
   const load = () =>
     apiGet("/api/v1/api-keys")

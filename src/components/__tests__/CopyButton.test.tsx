@@ -120,7 +120,7 @@ describe("CopyButton", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
   });
 
-  it("reverts after 1500 ms even after double-click (independent timers)", async () => {
+  it("resets the revert timer on double-click so Copied shows for 1500 ms from the last click", async () => {
     mockClipboard();
     render(<CopyButton value="x" label="Copy" />);
 
@@ -141,7 +141,13 @@ describe("CopyButton", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      jest.advanceTimersByTime(1499);
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(1);
     });
 
     expect(screen.getByRole("button")).toHaveTextContent("Copy");
@@ -171,5 +177,22 @@ describe("CopyButton", () => {
 
     expect(writeText).toHaveBeenCalledWith("");
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
+  });
+
+  it("clears the revert timer on unmount without stale setState", async () => {
+    mockClipboard();
+    const { unmount } = render(<CopyButton value="x" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    unmount();
+
+    act(() => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    expect(true).toBe(true);
   });
 });

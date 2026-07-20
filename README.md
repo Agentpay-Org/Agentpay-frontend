@@ -335,7 +335,11 @@ The 404 page (`src/app/not-found.tsx`) renders a `<nav aria-label="Helpful links
 
 ## Security headers
 
-A baseline security header set (CSP, `X-Frame-Options: DENY`, `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in `next.config.ts` via `src/lib/securityHeaders.ts`. The CSP `connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically; `<a href>` links to external sites (`https://stellar.org`, etc.) remain navigable. See [`docs/security-headers.md`](docs/security-headers.md) for the full header and CSP architecture, including directive-by-directive rationale and the safe workflow for adding allowed origins.
+A baseline security header set (`X-Frame-Options: DENY`, `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in `next.config.ts` via `src/lib/securityHeaders.ts`.
+
+**Content-Security-Policy** is handled separately by `src/proxy.ts` at **request time**, not at build time. The proxy generates a per-request cryptographic nonce and stamps it into `script-src 'nonce-…'`, which allows the inline theme pre-paint script in `src/app/layout.tsx` to execute without `'unsafe-inline'`. The nonce is forwarded via the `x-nonce` request header and read by the layout. The CSP `connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically; `<a href>` links to external sites (`https://stellar.org`, etc.) remain navigable.
+
+See [`docs/security-headers.md`](docs/security-headers.md) for the full header and CSP architecture, including directive-by-directive rationale, the nonce flow, and the safe workflow for adding allowed origins.
 
 ## Link safety convention
 

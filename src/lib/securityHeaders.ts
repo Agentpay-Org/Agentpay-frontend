@@ -1,9 +1,11 @@
 // Builds the Content-Security-Policy and other security hardening headers
 // served by every route in the dashboard.
 //
-// Designed to be consumed by `next.config.ts`'s `headers()` callback at
-// build time. `apiBase` is read from `NEXT_PUBLIC_AGENTPAY_API_BASE` so
-// `connect-src` always lines up with the backend the client actually fetches.
+// In production the CSP is emitted by src/proxy.ts at request time so it can
+// carry a per-request nonce for the inline theme pre-paint script.  The
+// build-time path (next.config.ts → defaultSecurityHeaders) still exists but
+// no longer includes Content-Security-Policy; the proxy is the sole source of
+// the CSP response header.
 
 import { DEFAULT_API_BASE } from "./resolveApiBase";
 
@@ -21,6 +23,13 @@ export type BuildSecurityHeadersOptions = {
   apiBase: string;
   /** Whether the build is a development build (drives script-src). */
   isDev?: boolean;
+  /**
+   * Per-request cryptographic nonce. When present, `'nonce-<value>'` is used
+   * in `script-src` instead of `'unsafe-inline'`.  This is set by the proxy at
+   * request time so the inline theme pre-paint script in `src/app/layout.tsx`
+   * can execute without falling back to `'unsafe-inline'`.
+   */
+  nonce?: string;
 };
 
 /**
@@ -38,10 +47,9 @@ export function originOf(apiBase: string): string {
 
 /**
  * Build a Content-Security-Policy value that:
- *   - restricts scripts to self with `'unsafe-inline'` in production (Next.js
- *     emits an inline bootstrap script for hydration when CSP is set via
- *     `next.config.ts` `headers()` rather than nonce-aware middleware) and
- *     adds `'unsafe-eval'` in development for Fast Refresh
+ *   - restricts scripts to self with a per-request nonce (when `nonce` is
+ *     provided) or `'unsafe-inline'` as a fallback, and adds `'unsafe-eval'`
+ *     in development for Fast Refresh
  *   - restricts styles to self with `'unsafe-inline'` because next/font and
  *     Next.js inject style tags at build time
  *   - allows `connect-src` to the configured API origin + 'self'
@@ -51,10 +59,14 @@ export function originOf(apiBase: string): string {
  *     `navigate-to`, which we deliberately don't)
  */
 export function buildCsp(options: BuildSecurityHeadersOptions): string {
-  const { apiBase, isDev = false } = options;
+  const { apiBase, isDev = false, nonce } = options;
   const apiOrigin = originOf(apiBase);
 
-  const scriptSrc = ["'self'", "'unsafe-inline'", isDev ? "'unsafe-eval'" : ""]
+  const scriptSrc = [
+    "'self'",
+    nonce ? `'nonce-${nonce}'` : "'unsafe-inline'",
+    isDev ? "'unsafe-eval'" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -80,6 +92,10 @@ export function buildCsp(options: BuildSecurityHeadersOptions): string {
  * Build the full map of HTTP response headers served by the app. The keys
  * match what Next.js's `headers()` callback accepts.
  *
+ * `Content-Security-Policy` is intentionally **not** included here —
+ * it is set at request time by `src/proxy.ts` so a per-request nonce can be
+ * injected.  All other headers are static and delivered via `next.config.ts`.
+ *
  * `Strict-Transport-Security` is intentionally omitted in development so
  * browsers don't cache the upgrade decision against the dev server.
  */
@@ -88,7 +104,6 @@ export function defaultSecurityHeaders(
 ): Record<string, string> {
   const { isDev = false } = options;
   const headers: Record<string, string> = {
-    "Content-Security-Policy": buildCsp(options),
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",

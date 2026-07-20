@@ -27,6 +27,19 @@ The root `<html>` element uses `suppressHydrationWarning` because the pre-paint 
 - **`src/app/seoMetadata.ts`** — classifies routes as `publicStaticRoutes` (crawled: `/`, `/about`, `/docs`, `/changelog`) and `operatorOnlyRoutes` (disallowed for crawlers: `/admin`, `/api-keys`, `/webhooks`, `/settings`).
 - Individual `page.tsx` files may also export a `metadata` object when the title is route-specific and not covered by a parent layout.
 
+### Data modules pattern
+
+Some routes render from typed data modules rather than API endpoints to improve performance, enable SSG/SSR, and allow content reuse (e.g., SEO feeds, documentation surfaces).
+
+- **`src/app/docs/endpoints.ts`** — API endpoint reference with types, descriptions, and curl examples. Used by `/docs` page.
+- **`src/app/changelog/entries.ts`** — Changelog release entries with version, date, and notes. Used by `/changelog` page. Entries are sorted by date in the component to prevent ordering drift.
+
+This pattern separates content from presentation, making it easier to:
+- Add new entries without editing React components
+- Validate entry shapes in tests
+- Reuse data for RSS feeds, sitemaps, or other surfaces
+- Enable static generation for better performance and SEO
+
 ### Nested layouts
 
 Segments may define their own `layout.tsx` (invariably thin wrappers that return `children`) to override or compose section-level metadata. Where no nested `layout.tsx` exists, the route inherits the root layout directly.
@@ -43,7 +56,7 @@ Segments may define their own `layout.tsx` (invariably thin wrappers that return
 | `/agents` | Agents | Client (`"use client"`) | `GET /api/v1/stats`; `GET /api/v1/agents?page=N&limit=25` | `agents/layout.tsx`; title `Agents` (`pageTitles.agents`) |
 | `/agents/:agent` | Agent detail | Client (`"use client"`) | `GET /api/v1/agents/:agent/usage`; `GET /api/v1/agents/:agent/total` | `agents/[agent]/layout.tsx`; title `Agent <agent>` (`agentTitle`) |
 | `/api-keys` | API keys | Client (`"use client"`) | `GET /api/v1/api-keys`; `POST /api/v1/api-keys`; `DELETE /api/v1/api-keys/:prefix` | `api-keys/layout.tsx`; title `API keys` (`pageTitles.apiKeys`) |
-| `/changelog` | Changelog | Client (`"use client"`) | `GET /api/v1/changelog` | Root layout; title `AgentPay` (root default; `page.tsx` does not export metadata) |
+| `/changelog` | Changelog | Server (no `"use client"`) | None — static release notes rendered from `src/app/changelog/entries.ts` data module | Root layout; title `Changelog — AgentPay` (exported from `page.tsx`) |
 | `/docs` | Docs | Server (no `"use client"`) | None — static endpoint reference (links to `/api/v1/openapi.json`) | Root layout; title `Docs — AgentPay` (exported from `page.tsx`) |
 | `/events` | Events | Client (`"use client"`) | `GET /api/v1/events?limit=100&type=<filter>` (with optional auto-refresh polling) | `events/layout.tsx`; title `Event log` (`pageTitles.events`) |
 | `/export` | Export | Server (no `"use client"`) | None — browser navigates directly to backend URLs | Root layout; title `Export` (exported from `page.tsx`) |
@@ -62,8 +75,8 @@ Segments may define their own `layout.tsx` (invariably thin wrappers that return
 
 Titles fall into three categories:
 
-1. **Root default** — `/` and `/changelog` inherit the root layout's default `AgentPay` title because they do not export metadata themselves.
-2. **Page-exported metadata** — `/about`, `/docs`, `/export`, and `/settings` export `metadata` directly from `page.tsx` with a fixed string.
+1. **Root default** — `/` inherits the root layout's default `AgentPay` title because it does not export metadata.
+2. **Page-exported metadata** — `/about`, `/docs`, `/export`, `/settings`, and `/changelog` export `metadata` directly from `page.tsx` with a fixed string.
 3. **Layout-exported metadata** — all other routes use a nested `layout.tsx` that sets `metadata.title` from `pageTitles.ts` or dynamically via `generateMetadata` for dynamic segments (`/services/:serviceId`, `/agents/:agent`).
 
 ---
@@ -97,7 +110,6 @@ This index groups the endpoints referenced by the frontend so reviewers can audi
 | `GET` | `/api/v1/webhooks` | `/webhooks` (list) |
 | `POST` | `/api/v1/webhooks` | `/webhooks` (register) |
 | `DELETE` | `/api/v1/webhooks/:id` | `/webhooks` (remove) |
-| `GET` | `/api/v1/changelog` | `/changelog` (release notes) |
 | `GET` | `/api/v1/usage/export.json` | `/export` (direct browser download) |
 | `GET` | `/api/v1/usage/export.csv` | `/export` (direct browser download) |
 

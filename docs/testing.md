@@ -89,6 +89,17 @@ src/lib/format.ts           |     100 |    92.30 |     100 |     100 | 47
 
 The **Uncovered Line #s** column points directly to the lines not exercised by any test. Use those line numbers with the lcov HTML report for context.
 
+## Route-segment layout tests
+
+`src/app/__tests__/layouts.test.tsx` is a shared, data-driven suite covering every top-level route-segment layout (`admin`, `agents`, `api-keys`, `events`, `search`, `services`, `stats`, `usage`, `webhooks`). Each layout in this app is a simple pass-through component that renders its children and exports a static `metadata.title` sourced from [`src/app/pageTitles.ts`](../src/app/pageTitles.ts).
+
+Rather than one test file per layout, the suite holds a `layoutCases` array of `{ name, Layout, metadata, expectedTitle }` rows and runs the same two assertions against each via `describe.each`:
+
+1. The layout renders its `children` (a sentinel node is passed in and asserted visible).
+2. `metadata.title` matches the corresponding entry in `pageTitles`, so the two files can never silently drift apart.
+
+To cover a new route segment's layout, add one row to `layoutCases` — no new test file or boilerplate is needed. Dynamic-route layouts that use `generateMetadata` (e.g. `src/app/services/[serviceId]/layout.tsx`) are out of scope for this suite and continue to be covered by [`src/app/services/layout.test.tsx`](../src/app/services/layout.test.tsx).
+
 ## Adding coverage for a new file
 
 1. Write tests until the file's metrics meet or exceed the per-file thresholds above.

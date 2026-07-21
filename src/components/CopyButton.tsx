@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Duration (ms) the "Copied" label is shown before reverting. */
-const COPied_MS = 1500;
+const COPIED_MS = 1500;
+
+/** Label shown while the copied state is active. */
+const COPIED_LABEL = "Copied";
 
 /**
  * Copies `value` to the clipboard on click and shows "Copied" for 1500 ms.
@@ -34,7 +37,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
       await navigator.clipboard.writeText(value);
       if (timerRef.current) clearTimeout(timerRef.current);
       setCopied(true);
-      timerRef.current = setTimeout(() => setCopied(false), COPied_MS);
+      timerRef.current = setTimeout(() => setCopied(false), COPIED_MS);
     } catch {
       /* ignore — clipboard may be unavailable in non-https contexts */
     }
@@ -47,7 +50,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
       aria-live="polite"
       className="rounded border border-zinc-300 px-2 py-0.5 text-xs hover:border-zinc-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
     >
-      {copied ? "Copied" : label}
+      {copied ? COPIED_LABEL : label}
     </button>
   );
 }

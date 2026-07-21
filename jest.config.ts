@@ -61,6 +61,19 @@ const config: Config = {
       functions: 100,
       lines: 100,
     },
+    // Validator modules — locked at ≥ 95% per the forms and validation guide.
+    "./src/lib/validateNumber.ts": {
+      statements: 95,
+      branches: 95,
+      functions: 100,
+      lines: 95,
+    },
+    "./src/lib/validateId.ts": {
+      statements: 95,
+      branches: 95,
+      functions: 100,
+      lines: 95,
+    },
   },
   coverageReporters: ["text", "json-summary", "lcov"],
 };

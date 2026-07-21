@@ -11,6 +11,7 @@ accessible, and easy to review.
 - Keep interactive controls keyboard reachable and use the existing
   `focus-visible` ring styles.
 - Do not pass secrets or private keys into display or clipboard components.
+- Refer to the [Forms and Validation Guide](./forms.md) for shared validation contracts, error message conventions, and form state management rules.
 
 ## Layout and Navigation
 
@@ -145,11 +146,28 @@ the action cannot be undone.
 | `error` | `ReactNode` | no | Error text; sets `aria-invalid` and `role="alert"`. |
 | other input attributes | `InputHTMLAttributes<HTMLInputElement>` | no | Supports `name`, `type`, `value`, `onChange`, `required`, and `autoComplete`. |
 
+`TextField` automatically manages internal component IDs to link the label (`htmlFor`), helper text (`aria-describedby`), and error messages. When an `error` prop is passed, `TextField`:
+1. Flips `aria-invalid` to `true`.
+2. Connects the error message element's ID to `aria-describedby`.
+3. Renders the error message inside a `span` with `role="alert"` for screen reader announcements.
+
+Always clear field-specific error states inside the `onChange` handler as the user types. For full details on validator contracts and form conventions, see the [Forms and Validation Guide](./forms.md).
+
 ```tsx
 <TextField
   label="Webhook URL"
   type="url"
   description="Use an HTTPS endpoint that can receive AgentPay events."
+/>
+
+<TextField
+  label="Service ID"
+  value={serviceId}
+  onChange={(e) => {
+    setServiceId(e.target.value);
+    setServiceIdError(null);
+  }}
+  error={serviceIdError ?? undefined}
 />
 ```
 

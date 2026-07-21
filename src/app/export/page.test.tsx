@@ -231,14 +231,15 @@ describe("ExportActions", () => {
         status: 200,
         blob: async () => new Blob([""], { type: "application/json" }),
         headers: { get: () => null },
-      } as Response);
+      } as unknown as Response);
 
       renderExportActions();
 
       fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
 
       await waitFor(() => {
-        const link = document.querySelector("a[download]") as HTMLAnchorElement;
+        expect(clickSpy).toHaveBeenCalled();
+        const link = clickSpy.mock.instances[0] as HTMLAnchorElement;
         expect(link).toBeTruthy();
         expect(link.download).toMatch(/usage-export_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.json/);
       });

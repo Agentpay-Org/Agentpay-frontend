@@ -237,8 +237,8 @@ describe("EventsPage", () => {
       expect(lines[1]).toContain("payment.failed");
     });
 
-    it("exports events beyond the 50-row on-screen render cap", async () => {
-      const largeList = Array.from({ length: 75 }, (_, i) => ({
+    it("exports events beyond the 100-row on-screen render cap", async () => {
+      const largeList = Array.from({ length: 150 }, (_, i) => ({
         id: `evt-${i}`,
         ts: BASE_TIME.getTime() - i * 1000,
         type: "bulk.event",
@@ -251,15 +251,15 @@ describe("EventsPage", () => {
       render(<EventsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Showing 50 of 75 events.")).toBeInTheDocument();
+        expect(screen.getByText("Showing first 100 of 150 events.")).toBeInTheDocument();
       });
 
       fireEvent.click(exportButton());
 
       const csv = exportedCsvText();
       const lines = csv.split("\r\n");
-      expect(lines).toHaveLength(1 + 75);
-      expect(csv).toContain("evt-74");
+      expect(lines).toHaveLength(1 + 150);
+      expect(csv).toContain("evt-149");
     });
 
     it("escapes embedded commas, quotes, and newlines and guards formula-injection prefixes", async () => {

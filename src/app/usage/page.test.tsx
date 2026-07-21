@@ -19,13 +19,13 @@ describe("UsagePage", () => {
   it("renders both Record and Query landmarks", () => {
     render(<UsagePage />);
     expect(
-      screen.getByRole("heading", { name: /Usage metering/i })
+      screen.getByRole("heading", { name: /Usage metering/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /Record usage/i })
+      screen.getByRole("heading", { name: /Record usage/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /Query usage/i })
+      screen.getByRole("heading", { name: /Query usage/i }),
     ).toBeInTheDocument();
   });
 
@@ -34,10 +34,10 @@ describe("UsagePage", () => {
 
     render(<UsagePage />);
     fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], {
-      target: { value: "a" },
+      target: { value: " agent-1 " },
     });
     fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
-      target: { value: "s" },
+      target: { value: " svc.alpha:prod " },
     });
     fireEvent.change(screen.getByLabelText(/^Requests$/i), {
       target: { value: "42" },
@@ -48,10 +48,65 @@ describe("UsagePage", () => {
       expect(screen.getByRole("status")).toHaveTextContent(/New total: 42/);
     });
     expect(apiPostMock).toHaveBeenCalledWith("/api/v1/usage", {
-      agent: "a",
-      serviceId: "s",
+      agent: "agent-1",
+      serviceId: "svc.alpha:prod",
       requests: 42,
     });
+  });
+
+  it("blocks record submit for empty, whitespace, or malformed identifiers", async () => {
+    render(<UsagePage />);
+    const agentInput = screen.getAllByLabelText(/^Agent$/i)[0];
+    const serviceInput = screen.getAllByLabelText(/^Service ID$/i)[0];
+
+    fireEvent.change(agentInput, { target: { value: "   " } });
+    fireEvent.change(serviceInput, { target: { value: "svc/one" } });
+    fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+      target: { value: "1" },
+    });
+    fireEvent.submit(screen.getByLabelText(/^Requests$/i).closest("form")!);
+
+    await waitFor(() => {
+      expect(agentInput).toHaveAttribute("aria-invalid", "true");
+      expect(serviceInput).toHaveAttribute("aria-invalid", "true");
+    });
+    expect(screen.getByText("Agent is required.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Service ID can only use letters, numbers, dots, underscores, hyphens, and colons.",
+      ),
+    ).toBeInTheDocument();
+    expect(agentInput.getAttribute("aria-describedby")).toBeTruthy();
+    expect(serviceInput.getAttribute("aria-describedby")).toBeTruthy();
+    expect(apiPostMock).not.toHaveBeenCalled();
+  });
+
+  it("clears record identifier field errors after editing", async () => {
+    render(<UsagePage />);
+    const agentInput = screen.getAllByLabelText(/^Agent$/i)[0];
+
+    fireEvent.change(agentInput, { target: { value: "agent one" } });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
+      target: { value: "svc-1" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+      target: { value: "1" },
+    });
+    fireEvent.submit(screen.getByLabelText(/^Requests$/i).closest("form")!);
+
+    expect(
+      await screen.findByText(
+        "Agent can only use letters, numbers, dots, underscores, hyphens, and colons.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(agentInput, { target: { value: "agent-one" } });
+    expect(
+      screen.queryByText(
+        "Agent can only use letters, numbers, dots, underscores, hyphens, and colons.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(agentInput).toHaveAttribute("aria-invalid", "false");
   });
 
   it("surfaces a backend invalid_request as a role=alert", async () => {
@@ -94,7 +149,7 @@ describe("UsagePage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        /requests must be a positive integer/
+        /requests must be a positive integer/,
       );
     });
     expect(apiPostMock).not.toHaveBeenCalled();
@@ -109,17 +164,42 @@ describe("UsagePage", () => {
 
     render(<UsagePage />);
     fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
-      target: { value: "a" },
+      target: { value: " a " },
     });
-    fireEvent.change(screen.getByLabelText(/^Service ID$/i, { selector: 'input[name="queryServiceId"]' }), {
-      target: { value: "s" },
-    });
+    fireEvent.change(
+      screen.getByLabelText(/^Service ID$/i, {
+        selector: 'input[name="queryServiceId"]',
+      }),
+      {
+        target: { value: " s " },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/a \/ s: 12 request\(s\)\./i);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /a \/ s: 12 request\(s\)\./i,
+      );
     });
     expect(apiGetMock).toHaveBeenCalledWith("/api/v1/usage/a/s");
+  });
+
+  it("blocks query submit for too-long identifiers", async () => {
+    render(<UsagePage />);
+    const queryAgentInput = screen.getAllByLabelText(/^Agent$/i)[1];
+    const queryServiceInput = screen.getAllByLabelText(/^Service ID$/i)[1];
+
+    fireEvent.change(queryAgentInput, { target: { value: "agent-ok" } });
+    fireEvent.change(queryServiceInput, { target: { value: "s".repeat(129) } });
+    fireEvent.click(screen.getByRole("button", { name: /Query/i }));
+
+    await waitFor(() => {
+      expect(queryServiceInput).toHaveAttribute("aria-invalid", "true");
+    });
+    expect(
+      screen.getByText("Service ID must be 128 characters or fewer."),
+    ).toBeInTheDocument();
+    expect(apiGetMock).not.toHaveBeenCalled();
   });
 
   it("shows a request id when the query request fails", async () => {
@@ -133,9 +213,14 @@ describe("UsagePage", () => {
     fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
       target: { value: "a" },
     });
-    fireEvent.change(screen.getByLabelText(/^Service ID$/i, { selector: 'input[name="queryServiceId"]' }), {
-      target: { value: "s" },
-    });
+    fireEvent.change(
+      screen.getByLabelText(/^Service ID$/i, {
+        selector: 'input[name="queryServiceId"]',
+      }),
+      {
+        target: { value: "s" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
@@ -195,9 +280,13 @@ describe("UsagePage", () => {
     render(<UsagePage />);
 
     // First query
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], { target: { value: "a" } });
-    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], { target: { value: "s" } });
-    
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: "a" },
+    });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], {
+      target: { value: "s" },
+    });
+
     const queryButton = screen.getByRole("button", { name: /Query/i });
     fireEvent.click(queryButton);
 
@@ -213,12 +302,16 @@ describe("UsagePage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/a \/ s: 10 request\(s\)/i);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /a \/ s: 10 request\(s\)/i,
+      );
     });
 
     // Start second query
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], { target: { value: "b" } });
-    
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: "b" },
+    });
+
     // Create new promise for second query
     let resolveQuery2: (value: unknown) => void;
     apiGetMock.mockImplementationOnce(() => {
@@ -240,7 +333,9 @@ describe("UsagePage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/b \/ s: 20 request\(s\)/i);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /b \/ s: 20 request\(s\)/i,
+      );
     });
   });
 
@@ -249,12 +344,18 @@ describe("UsagePage", () => {
 
     apiGetMock.mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 10 });
 
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], { target: { value: "a" } });
-    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], { target: { value: "s" } });
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: "a" },
+    });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], {
+      target: { value: "s" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/a \/ s: 10 request\(s\)/i);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /a \/ s: 10 request\(s\)/i,
+      );
     });
 
     // Now error
@@ -270,15 +371,25 @@ describe("UsagePage", () => {
   });
 
   it("handles an empty/zero total", async () => {
-    apiGetMock.mockResolvedValueOnce({ agent: "zero", serviceId: "s", total: 0 });
+    apiGetMock.mockResolvedValueOnce({
+      agent: "zero",
+      serviceId: "s",
+      total: 0,
+    });
 
     render(<UsagePage />);
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], { target: { value: "zero" } });
-    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], { target: { value: "s" } });
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: "zero" },
+    });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], {
+      target: { value: "s" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/zero \/ s: 0 request\(s\)/i);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /zero \/ s: 0 request\(s\)/i,
+      );
     });
   });
 
@@ -291,12 +402,18 @@ describe("UsagePage", () => {
     });
 
     render(<UsagePage />);
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], { target: { value: "a" } });
-    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], { target: { value: "s" } });
-    fireEvent.change(screen.getByLabelText(/^Requests$/i), { target: { value: "5" } });
-    
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], {
+      target: { value: "a" },
+    });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
+      target: { value: "s" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+      target: { value: "5" },
+    });
+
     const recordButton = screen.getByRole("button", { name: /Record/i });
-    
+
     // Using submit to verify the onRecord handler prevents multiple calls
     const form = screen.getByLabelText(/^Requests$/i).closest("form")!;
     fireEvent.submit(form);

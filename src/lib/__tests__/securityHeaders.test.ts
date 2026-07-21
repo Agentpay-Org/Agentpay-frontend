@@ -4,7 +4,7 @@ import {
   originOf,
   resolveApiBase,
   type BuildSecurityHeadersOptions,
-} from "../lib/securityHeaders";
+} from "../securityHeaders";
 
 const prod: BuildSecurityHeadersOptions = {
   apiBase: "https://api.example.com",
@@ -12,6 +12,15 @@ const prod: BuildSecurityHeadersOptions = {
 const dev: BuildSecurityHeadersOptions = {
   apiBase: "https://api.example.com",
   isDev: true,
+};
+const withNonce: BuildSecurityHeadersOptions = {
+  apiBase: "https://api.example.com",
+  nonce: "abc123def456",
+};
+const devWithNonce: BuildSecurityHeadersOptions = {
+  apiBase: "https://api.example.com",
+  isDev: true,
+  nonce: "nonce-dev-789",
 };
 
 describe("originOf", () => {
@@ -48,12 +57,23 @@ describe("buildCsp", () => {
     expect(buildCsp(prod)).not.toMatch(/script-src[^;]*'unsafe-eval'/);
   });
 
-  it("includes 'unsafe-inline' in production script-src so Next.js hydration scripts run", () => {
-    // next.config.ts headers() does not participate in the middleware nonce
-    // pipeline; without 'unsafe-inline' the inline __NEXT_DATA__ block would
-    // be blocked. If a future change removes this, add nonce-aware middleware
-    // at the same time.
+  it("uses 'unsafe-inline' as fallback in script-src when no nonce is provided", () => {
+    // When middleware is absent or does not set a nonce, the CSP builder
+    // falls back to 'unsafe-inline' so the app still works.
     expect(buildCsp(prod)).toMatch(/script-src[^;]*'unsafe-inline'/);
+  });
+
+  it("replaces 'unsafe-inline' with 'nonce-...' when a nonce is provided", () => {
+    const csp = buildCsp(withNonce);
+    expect(csp).toMatch(/script-src[^;]*'nonce-abc123def456'/);
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  });
+
+  it("includes 'unsafe-eval' alongside the nonce in development", () => {
+    const csp = buildCsp(devWithNonce);
+    expect(csp).toMatch(/script-src[^;]*'nonce-nonce-dev-789'/);
+    expect(csp).toMatch(/script-src[^;]*'unsafe-eval'/);
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   });
 
   it("adds 'unsafe-eval' to script-src in development for Fast Refresh", () => {
@@ -99,7 +119,9 @@ describe("buildCsp", () => {
 describe("defaultSecurityHeaders", () => {
   it("returns every required hardening header (including HSTS) in production", () => {
     const headers = defaultSecurityHeaders(prod);
-    expect(headers["Content-Security-Policy"]).toBeTruthy();
+    // CSP is handled by middleware at request time and is no longer included
+    // in the static config-derived header set.
+    expect(headers["Content-Security-Policy"]).toBeUndefined();
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(headers["X-Frame-Options"]).toBe("DENY");
@@ -114,7 +136,7 @@ describe("defaultSecurityHeaders", () => {
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["X-Frame-Options"]).toBe("DENY");
     expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
-    expect(headers["Content-Security-Policy"]).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+    expect(headers["Content-Security-Policy"]).toBeUndefined();
   });
 
   it("disables a wide set of potentially sensitive browser features by default", () => {
@@ -126,13 +148,11 @@ describe("defaultSecurityHeaders", () => {
     expect(pp).toContain("interest-cohort=()");
   });
 
-  it("derives the CSP connect-src from the api base", () => {
+  it("does not include Content-Security-Policy (handled at request time by the proxy)", () => {
     const headers = defaultSecurityHeaders({
       apiBase: "https://api.staging.agentpay.io/v2",
     });
-    expect(headers["Content-Security-Policy"]).toContain(
-      "connect-src 'self' https://api.staging.agentpay.io"
-    );
+    expect(headers["Content-Security-Policy"]).toBeUndefined();
   });
 });
 

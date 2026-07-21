@@ -73,8 +73,19 @@ type TopAgents = { serviceId: string; items: { agent: string; total: number }[] 
 | --- | --- | --- | --- | --- |
 | `POST /api/v1/usage` | Write | `{ agent: string; serviceId: string; requests: number }` | `{ total: number }` | `usage/page.tsx` (raw `fetch`) |
 | `GET /api/v1/usage/{agent}/{serviceId}` | Read | — | `{ agent: string; serviceId: string; total: number }` | `usage/page.tsx` (raw `fetch`) |
-| `GET /api/v1/usage/export.json` | Read | — | file download (JSON), opened via `<a href>` | `export/page.tsx` |
-| `GET /api/v1/usage/export.csv` | Read | — | file download (CSV), opened via `<a href>` | `export/page.tsx` |
+| `GET /api/v1/usage/export.json` | Read | — | file download (JSON), opened via `<a href>` | `export/ExportActions.tsx` |
+| `GET /api/v1/usage/export.csv` | Read | — | file download (CSV), opened via `<a href>` | `export/ExportActions.tsx` |
+
+Both export endpoints accept optional query parameters for date-range filtering:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `startDate` | `string` (ISO date, e.g. `2025-01-01`) | Inclusive start of the date range |
+| `endDate` | `string` (ISO date, e.g. `2025-12-31`) | Inclusive end of the date range |
+
+Example: `GET /api/v1/usage/export.json?startDate=2025-01-01&endDate=2025-01-31`
+
+The UI defaults to the current month and provides quick presets for the last 7 and 30 days.
 
 ## Stats
 
@@ -139,11 +150,34 @@ type Webhook = { id: string; url: string; events: string[]; createdAt: number };
 
 | Method & path | Type | Request body | Response shape | Source |
 | --- | --- | --- | --- | --- |
-| `GET /api/v1/events?limit={limit}` | Read | — | `{ items: AppEvent[] }` | `events/page.tsx` |
+| `GET /api/v1/events?limit={limit}` | Read | — | `{ items: AppEvent[] } \| { events: AppEvent[] }` | `events/page.tsx` |
 
 ```ts
-type AppEvent = { id: string; ts: number; type: string; payload: Record<string, unknown> };
+type AppEvent = {
+  id: string;
+  ts: number | string | null;
+  type: string;
+  payload: Record<string, unknown>;
+};
 ```
+
+### CSV export (client-side)
+
+The **Export CSV** button on the Events page does not call the backend — it
+serialises the currently filtered `AppEvent[]` (the full filtered set, not
+just the 50 rows rendered on screen) into an RFC 4180 CSV string entirely in
+the browser and triggers a download via an object URL. Disabled while the
+page is loading or the filtered set is empty. Columns: `id, timestamp, type,
+payload` (`payload` is JSON-stringified). Each field is escaped:
+
+- Values starting with `=`, `+`, `-`, `@`, a tab, or a carriage return are
+  prefixed with `'` to defuse spreadsheet formula injection.
+- Values containing a comma, double quote, or newline are wrapped in double
+  quotes, with embedded quotes doubled.
+
+The file is written with a UTF-8 byte-order mark so Excel opens it with the
+correct character set. Source: `events/page.tsx` (`eventsToCsv`,
+`escapeCsvField`, `downloadEventsCsv`).
 
 ## Changelog
 

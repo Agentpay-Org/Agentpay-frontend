@@ -24,8 +24,11 @@ const DEFAULT_POSITIVE_MESSAGE = "requests must be a positive integer";
  * Rejected examples: "", "-1", "-0", "1.5", "1e2" (non-integer), "-0.1"
  */
 export function parseNonNegativeInt(input: string): ParseResult {
+  if (input.trim() === "") {
+    return { ok: false, message: DEFAULT_NON_NEGATIVE_MESSAGE };
+  }
   const n = Number(input);
-  if (!Number.isInteger(n) || n < 0) {
+  if (!Number.isInteger(n) || n < 0 || Object.is(n, -0)) {
     return { ok: false, message: DEFAULT_NON_NEGATIVE_MESSAGE };
   }
   return { ok: true, value: n };
@@ -38,6 +41,9 @@ export function parseNonNegativeInt(input: string): ParseResult {
  * Rejected examples: "", "0", "-1", "1.5", "-0.1"
  */
 export function parsePositiveInt(input: string): ParseResult {
+  if (input.trim() === "") {
+    return { ok: false, message: DEFAULT_POSITIVE_MESSAGE };
+  }
   const n = Number(input);
   if (!Number.isInteger(n) || n <= 0) {
     return { ok: false, message: DEFAULT_POSITIVE_MESSAGE };

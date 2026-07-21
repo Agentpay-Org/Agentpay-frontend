@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { PageShell } from "@/components/PageShell";
+import { TimeAgo } from "@/components/TimeAgo";
+import { safeFormatTimestamp } from "@/lib/format";
 import { safeHref } from "@/lib/url";
 
-
-type Webhook = { id: string; url: string; events: string[]; createdAt: number };
+type Webhook = { id: string; url: string; events: string[]; createdAt?: number | null };
 
 export default function WebhooksPage() {
   const [items, setItems] = useState<Webhook[] | null>(null);
@@ -100,7 +100,12 @@ export default function WebhooksPage() {
       </form>
       {items && (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {items.map((w) => (
+          {items.map((w) => {
+            const createdAt = typeof w.createdAt === "number" ? w.createdAt : Number.NaN;
+            const createdAtIso = safeFormatTimestamp(createdAt);
+            const hasValidCreatedAt = createdAtIso !== "—";
+
+            return (
             <li key={w.id} className="flex items-center justify-between gap-2 py-3">
               <div>
                 <p className="text-sm font-medium break-all">
@@ -118,6 +123,11 @@ export default function WebhooksPage() {
 
                 </p>
                 <p className="text-xs text-zinc-500">{w.events.join(", ")}</p>
+                {hasValidCreatedAt && (
+                  <p className="text-xs text-zinc-500">
+                    Registered <TimeAgo ts={createdAt} title={createdAtIso} />
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -127,7 +137,8 @@ export default function WebhooksPage() {
                 Remove
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </PageShell>

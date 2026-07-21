@@ -5,9 +5,22 @@ import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
-import { PageShell } from "@/components/PageShell";
+import { EmptyState } from "@/components/EmptyState";
+import { TimeAgo } from "@/components/TimeAgo";
+import { safeFormatTimestamp } from "@/lib/format";
 
-type KeyItem = { prefix: string; label: string; createdAt: number };
+type KeyItem = {
+  prefix: string;
+  label: string;
+  createdAt?: number | string | null;
+};
+
+function toTimestampMs(value: KeyItem["createdAt"]): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric < 1_000_000_000_000 ? numeric * 1_000 : numeric;
+}
 
 export default function ApiKeysPage() {
   const [items, setItems] = useState<KeyItem[] | null>(null);
@@ -18,8 +31,8 @@ export default function ApiKeysPage() {
   const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
 
   const load = () =>
-    apiGet("/api/v1/api-keys")
-      .then((b) => setItems((b as { items: KeyItem[] }).items))
+    apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
+      .then((b) => setItems(b.items))
       .catch((e: Error) => setError(e.message));
 
   useEffect(() => {
@@ -30,8 +43,8 @@ export default function ApiKeysPage() {
     e.preventDefault();
     setError(null);
     try {
-      const res = await apiPost("/api/v1/api-keys", { label });
-      setCreated((res as { key: string }).key);
+      const res = await apiPost<{ key: string }>("/api/v1/api-keys", { label });
+      setCreated(res.key);
       setShowFull(false);
       setLabel("");
       await load();
@@ -94,7 +107,10 @@ export default function ApiKeysPage() {
       </form>
 
       {created && (
-        <div role="status" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm"
+        >
           <p className="font-medium">New key - copy now, shown only once.</p>
           <div className="flex items-center gap-2 font-mono text-sm">
             <code className="flex-1 break-all">
@@ -117,23 +133,50 @@ export default function ApiKeysPage() {
 
       <AlertError message={error} />
 
-      {items && (
+      {items && items.length === 0 && (
+        <div role="status">
+          <EmptyState
+            title="No API keys yet"
+            description="Create an API key to authenticate requests from your agents and services."
+          />
+        </div>
+      )}
+
+      {items && items.length > 0 && (
         <ul className="divide-y divide-zinc-200">
-          {items.map((k) => (
-            <li key={k.prefix} className="flex items-center justify-between gap-2 py-3">
-              <div>
-                <p className="text-sm font-medium">{k.label}</p>
-                <p className="font-mono text-xs text-zinc-500">{k.prefix}...</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPendingRevoke(k)}
-                className="rounded border border-zinc-300 px-3 py-1 text-xs"
+          {items.map((k) => {
+            const createdAtMs = toTimestampMs(k.createdAt);
+            const createdAtIso = safeFormatTimestamp(createdAtMs);
+
+            return (
+              <li
+                key={k.prefix}
+                className="flex items-center justify-between gap-2 py-3"
               >
-                Revoke
-              </button>
-            </li>
-          ))}
+                <div>
+                  <p className="text-sm font-medium">{k.label}</p>
+                  <p className="font-mono text-xs text-zinc-500">
+                    {k.prefix}...
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Created{" "}
+                    {createdAtMs === null ? (
+                      <time title={createdAtIso}>{createdAtIso}</time>
+                    ) : (
+                      <TimeAgo ts={createdAtMs} />
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingRevoke(k)}
+                  className="rounded border border-zinc-300 px-3 py-1 text-xs"
+                >
+                  Revoke
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </PageShell>

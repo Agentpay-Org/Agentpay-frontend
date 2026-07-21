@@ -1,12 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-/** Duration (ms) the "Copied" label is shown before reverting. */
-const COPIED_MS = 1500;
-
-/** Label shown while the copied state is active. */
-const COPIED_LABEL = "Copied";
+import { useClipboard } from "../lib/useClipboard";
 
 /**
  * Copies `value` to the clipboard on click and shows "Copied" for 1500 ms.
@@ -23,24 +17,10 @@ const COPIED_LABEL = "Copied";
  * @param label - Visible button label before copying (defaults to `"Copy"`).
  */
 export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+  const { copy, copied } = useClipboard({ timeout: 1500 });
 
   const onClick = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setCopied(true);
-      timerRef.current = setTimeout(() => setCopied(false), COPIED_MS);
-    } catch {
-      /* ignore — clipboard may be unavailable in non-https contexts */
-    }
+    await copy(value);
   };
 
   return (

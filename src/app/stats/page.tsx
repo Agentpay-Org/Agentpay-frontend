@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiGet } from "@/lib/apiClient";
-import { AlertError } from "@/components/AlertError";
-import { PageShell } from "@/components/PageShell";
+import { usePolling } from "@/lib/usePolling";
 
 type Stats = {
   totalServices: number;
@@ -14,22 +11,9 @@ type Stats = {
 };
 
 export default function StatsPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const tick = () =>
-      apiGet<Stats>("/api/v1/stats")
-        .then((s) => !cancelled && setStats(s))
-        .catch((e) => !cancelled && setError(e.message));
-    tick();
-    const t = setInterval(tick, 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
+  const statsState = usePolling<Stats>("/api/v1/stats", 5000);
+  const stats = statsState.data;
+  const error = statsState.error;
 
   return (
     <PageShell>

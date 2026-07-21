@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { render, screen } from "@testing-library/react";
 import { PageHeading } from "../PageHeading";
 
@@ -36,7 +37,7 @@ describe("PageHeading", () => {
     render(
       <PageHeading
         title="Services"
-        action={<a href="/services/new">New service</a>}
+        action={<Link href="/services/new">New service</Link>}
       />
     );
 

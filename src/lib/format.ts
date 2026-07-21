@@ -1,33 +1,82 @@
 const STROOPS_PER_XLM = 10_000_000;
 const DEFAULT_LOCALE = "en-US";
 
-const xlmFormatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 7,
-});
+const formattersCache = new Map<string, Intl.NumberFormat>();
 
-const integerFormatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
-  maximumFractionDigits: 0,
-});
+function getFormatter(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `${locale}-${JSON.stringify(options)}`;
+  let formatter = formattersCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    formattersCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+export interface FormatStroopsOptions {
+  /** If true, format as raw stroops instead of converting to XLM (e.g. "123,456,789 stroops") */
+  forceRaw?: boolean;
+  /** The locale to use for formatting. Defaults to "en-US" */
+  locale?: string;
+}
 
 /**
  * Format a stroops amount using Stellar's 1 XLM = 10,000,000 stroops ratio.
- * Zero remains `0 XLM`; non-zero sub-cent values stay in grouped raw stroops
+ * Zero remains `0 XLM`. Non-zero sub-cent values stay in grouped raw stroops
  * so tiny balances are not hidden as `0.00 XLM`.
+ *
+ * @param stroops - The amount in stroops to format.
+ * @param optionsOrForceRaw - Optional configuration object or boolean toggle to force raw stroops formatting.
+ * @returns A locale-formatted string representation.
  */
-export function formatStroops(stroops: number): string {
-  const xlm = stroops / STROOPS_PER_XLM;
-  if (xlm === 0) return "0 XLM";
-  if (xlm < 0.01) {
-    const unit = Math.abs(stroops) === 1 ? "stroop" : "stroops";
-    return `${integerFormatter.format(stroops)} ${unit}`;
+export function formatStroops(
+  stroops: number,
+  optionsOrForceRaw?: FormatStroopsOptions | boolean
+): string {
+  const forceRaw = typeof optionsOrForceRaw === "boolean"
+    ? optionsOrForceRaw
+    : optionsOrForceRaw?.forceRaw;
+  let locale = DEFAULT_LOCALE;
+  if (optionsOrForceRaw && typeof optionsOrForceRaw === "object" && optionsOrForceRaw.locale) {
+    locale = optionsOrForceRaw.locale;
   }
-  return `${xlmFormatter.format(xlm)} XLM`;
+
+  const xlm = stroops / STROOPS_PER_XLM;
+  
+  // Keep the 0 XLM zero case
+  if (xlm === 0) return "0 XLM";
+
+  // Check if we force raw stroops or if we are below the sub-cent threshold (< 0.01 XLM in absolute terms)
+  if (forceRaw || Math.abs(xlm) < 0.01) {
+    const unit = Math.abs(stroops) === 1 ? "stroop" : "stroops";
+    const formatter = getFormatter(locale, { maximumFractionDigits: 0 });
+    return `${formatter.format(stroops)} ${unit}`;
+  }
+
+  // Otherwise, format as XLM with 2 to 7 decimal places
+  const formatter = getFormatter(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  });
+  return `${formatter.format(xlm)} XLM`;
 }
 
-/** Format a numeric request count with thousands separators. */
-export function formatRequests(n: number): string {
-  return integerFormatter.format(n);
+/**
+ * Format a numeric request count with thousands separators.
+ *
+ * @param n - The number of requests.
+ * @param optionsOrLocale - Optional configuration object or string locale.
+ * @returns A locale-formatted integer string.
+ */
+export function formatRequests(
+  n: number,
+  optionsOrLocale?: { locale?: string } | string
+): string {
+  const locale = typeof optionsOrLocale === "string"
+    ? optionsOrLocale
+    : optionsOrLocale?.locale || DEFAULT_LOCALE;
+  const formatter = getFormatter(locale, { maximumFractionDigits: 0 });
+  return formatter.format(n);
 }
 
 /** Format an absolute timestamp into a short HH:MM:SS string. */
@@ -47,6 +96,25 @@ export const EVENT_PAYLOAD_MAX_CHARS = 5000;
 
 /** Marker appended to truncated payloads so readers can spot the cut-off. */
 export const EVENT_PAYLOAD_TRUNCATED_MARKER = "\n…(truncated)";
+
+/**
+ * Maximum number of top-level rows rendered in a single pass on any list page.
+ *
+ * This acts as a client-side defence-in-depth cap: if the backend ignores the
+ * page/limit parameters and sends back a huge payload, the browser will only
+ * ever create this many DOM nodes per list.  It is **not** a substitute for
+ * server-side pagination — the backend should still enforce its own limit so
+ * the response size stays reasonable over the wire.
+ *
+ * Chosen above the expected values for every list in the app:
+ *   - events page:     backend limit = 100
+ *   - search page:     backend limit =  50
+ *   - top-agents page: backend limit =  25 per page
+ *
+ * Set to 100 so it covers the largest expected page without firing
+ * a false-positive truncation note in normal operation.
+ */
+export const MAX_RENDERED_ROWS = 100;
 
 /**
  * Safely serialise an arbitrary value to JSON, defending against:
@@ -96,11 +164,59 @@ export function safeStringify(
     // but we still refuse to throw inside render code.
     return "[unserialisable]";
   }
-  if (serialised === undefined) return "[undefined]";
   if (serialised.length <= maxChars) return serialised;
   return (
     serialised.slice(0, Math.max(0, maxChars)) + EVENT_PAYLOAD_TRUNCATED_MARKER
   );
+}
+
+/** Character used to mark the removed middle section of a truncated id. */
+export const TRUNCATE_ELLIPSIS = "…";
+
+/** Default number of leading characters kept by {@link truncateMiddle}. */
+export const TRUNCATE_HEAD_DEFAULT = 8;
+
+/** Default number of trailing characters kept by {@link truncateMiddle}. */
+export const TRUNCATE_TAIL_DEFAULT = 6;
+
+/**
+ * Truncate a long identifier by collapsing its middle into an ellipsis while
+ * preserving both ends, e.g. `GABCDEFG…XYZ123`. Agent and service ids only
+ * differ at the edges, so keeping the tail visible is what makes two truncated
+ * ids distinguishable — unlike CSS `text-overflow: ellipsis`, which hides it.
+ *
+ * The input is returned unchanged when it already fits the budget
+ * (`head + tail + 1` characters, the `1` being the ellipsis itself), so short
+ * ids never gain a marker. Counting is code-point aware so surrogate pairs are
+ * never split in half. Negative or fractional `head` / `tail` values are
+ * clamped to non-negative integers.
+ *
+ * Callers rendering the truncated form should expose the full value through
+ * `title` and an accessible label (e.g. `aria-label`) so hover and assistive
+ * technology both see the complete identifier.
+ *
+ * @param value - The identifier to truncate.
+ * @param head - Leading characters to keep. Defaults to {@link TRUNCATE_HEAD_DEFAULT}.
+ * @param tail - Trailing characters to keep. Defaults to {@link TRUNCATE_TAIL_DEFAULT}.
+ * @returns The original string, or `head` chars + `…` + `tail` chars.
+ */
+export function truncateMiddle(
+  value: string,
+  head: number = TRUNCATE_HEAD_DEFAULT,
+  tail: number = TRUNCATE_TAIL_DEFAULT
+): string {
+  const safeHead = Number.isFinite(head) ? Math.max(0, Math.floor(head)) : TRUNCATE_HEAD_DEFAULT;
+  const safeTail = Number.isFinite(tail) ? Math.max(0, Math.floor(tail)) : TRUNCATE_TAIL_DEFAULT;
+
+  // Split into code points so astral characters (emoji, some CJK) are kept
+  // whole instead of being cut between surrogate halves.
+  const chars = Array.from(value);
+  const budget = safeHead + safeTail + TRUNCATE_ELLIPSIS.length;
+  if (chars.length <= budget) return value;
+
+  const headPart = chars.slice(0, safeHead).join("");
+  const tailPart = safeTail > 0 ? chars.slice(-safeTail).join("") : "";
+  return `${headPart}${TRUNCATE_ELLIPSIS}${tailPart}`;
 }
 
 type TimestampInput = number | string | null | undefined;

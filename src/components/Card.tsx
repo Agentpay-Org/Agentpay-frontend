@@ -1,5 +1,14 @@
 import { type HTMLAttributes, type ReactNode } from "react";
 
+/**
+ * Generic card container rendered as a `<section>`.
+ *
+ * - `title` (optional) — rendered inside a `<header>` at the top of the card.
+ * - `footer` (optional) — rendered inside a `<footer>` at the bottom.
+ * - `className` — merged onto the section element for style customisation.
+ * - Additional `...rest` attributes are passed through to the `<section>`.
+ */
+
 type CardProps = HTMLAttributes<HTMLDivElement> & {
   title?: ReactNode;
   footer?: ReactNode;

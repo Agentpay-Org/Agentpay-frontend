@@ -8,6 +8,7 @@ import { apiGet, apiPost } from "@/lib/apiClient";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
+import { validateIdentifier } from "@/lib/validateId";
 
 type QueryResult = {
   agent: string;
@@ -27,7 +28,10 @@ type QueryStatus =
   | { kind: "ok"; result: QueryResult | null }
   | { kind: "error"; message: string; requestId?: string };
 
-function describeError(error: unknown): { message: string; requestId?: string } {
+function describeError(error: unknown): {
+  message: string;
+  requestId?: string;
+} {
   const apiError = error as Partial<ApiError> | null | undefined;
   return {
     message:
@@ -49,11 +53,18 @@ function formatAlert(message: string, requestId?: string): string {
 
 export default function UsagePage() {
   const [agent, setAgent] = useState("");
+  const [agentError, setAgentError] = useState<string | null>(null);
   const [serviceId, setServiceId] = useState("");
+  const [serviceIdError, setServiceIdError] = useState<string | null>(null);
   const [requests, setRequests] = useState("");
+  const [requestsError, setRequestsError] = useState<string | null>(null);
   const [status, setStatus] = useState<UsageStatus>({ kind: "idle" });
   const [queryAgent, setQueryAgent] = useState("");
+  const [queryAgentError, setQueryAgentError] = useState<string | null>(null);
   const [queryService, setQueryService] = useState("");
+  const [queryServiceError, setQueryServiceError] = useState<string | null>(
+    null,
+  );
   const [queryResult, setQueryResult] = useState<QueryStatus>({ kind: "idle" });
   const isRecording = status.kind === "loading";
   const isQuerying = queryResult.kind === "loading";
@@ -61,18 +72,28 @@ export default function UsagePage() {
   const onRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isRecording) return;
+    setAgentError(null);
+    setServiceIdError(null);
+    setRequestsError(null);
+    const parsedAgent = validateIdentifier(agent, "Agent");
+    const parsedServiceId = validateIdentifier(serviceId, "Service ID");
+    if (!parsedAgent.ok || !parsedServiceId.ok) {
+      if (!parsedAgent.ok) setAgentError(parsedAgent.message);
+      if (!parsedServiceId.ok) setServiceIdError(parsedServiceId.message);
+      return;
+    }
     const parsed = parsePositiveInt(requests);
     if (!parsed.ok) {
       // Surface the validation message through the field error.
-      setStatus({ kind: "error", message: parsed.message });
+      setRequestsError(parsed.message);
       return;
     }
 
     setStatus({ kind: "loading" });
     try {
       const body = await apiPost<{ total: number }>("/api/v1/usage", {
-        agent,
-        serviceId,
+        agent: parsedAgent.value,
+        serviceId: parsedServiceId.value,
         requests: parsed.value,
       });
       setStatus({ kind: "ok", total: body?.total });
@@ -85,13 +106,22 @@ export default function UsagePage() {
   const onQuery = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isQuerying) return;
+    setQueryAgentError(null);
+    setQueryServiceError(null);
+    const parsedAgent = validateIdentifier(queryAgent, "Agent");
+    const parsedServiceId = validateIdentifier(queryService, "Service ID");
+    if (!parsedAgent.ok || !parsedServiceId.ok) {
+      if (!parsedAgent.ok) setQueryAgentError(parsedAgent.message);
+      if (!parsedServiceId.ok) setQueryServiceError(parsedServiceId.message);
+      return;
+    }
     setQueryResult({ kind: "loading" });
 
     try {
       const result = await apiGet<QueryResult>(
-        `/api/v1/usage/${encodeURIComponent(queryAgent)}/${encodeURIComponent(
-          queryService
-        )}`
+        `/api/v1/usage/${encodeURIComponent(parsedAgent.value)}/${encodeURIComponent(
+          parsedServiceId.value,
+        )}`,
       );
       setQueryResult({ kind: "ok", result: result ?? null });
     } catch (error) {
@@ -103,7 +133,9 @@ export default function UsagePage() {
   return (
     <PageShell maxWidth="2xl" gap="12" className="min-h-screen">
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Usage metering</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Usage metering
+        </h1>
         <p className="text-zinc-600 dark:text-zinc-400">
           Record per-request usage for an agent and query the running total.
         </p>
@@ -114,33 +146,41 @@ export default function UsagePage() {
           Record usage
         </h2>
         <form onSubmit={onRecord} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Agent</span>
-            <input
-              required
-              name="agent"
-              value={agent}
-              onChange={(e) => setAgent(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Service ID</span>
-            <input
-              required
-              name="serviceId"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
+          <TextField
+            label="Agent"
+            required
+            name="agent"
+            value={agent}
+            onChange={(e) => {
+              setAgent(e.target.value);
+              setAgentError(null);
+            }}
+            error={agentError ?? undefined}
+          />
+          <TextField
+            label="Service ID"
+            required
+            name="serviceId"
+            value={serviceId}
+            onChange={(e) => {
+              setServiceId(e.target.value);
+              setServiceIdError(null);
+            }}
+            error={serviceIdError ?? undefined}
+          />
           <TextField
             label="Requests"
             inputMode="numeric"
             required
             value={requests}
-            onChange={(e) => setRequests(e.target.value)}
-            error={status.kind === "error" ? status.message : undefined}
+            onChange={(e) => {
+              setRequests(e.target.value);
+              setRequestsError(null);
+              if (status.kind === "error") {
+                setStatus({ kind: "idle" });
+              }
+            }}
+            error={requestsError ?? undefined}
           />
 
           <button
@@ -152,7 +192,10 @@ export default function UsagePage() {
           </button>
         </form>
         {status.kind === "ok" && (
-          <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+          <p
+            role="status"
+            className="text-sm text-emerald-700 dark:text-emerald-400"
+          >
             {typeof status.total === "number"
               ? `Recorded. New total: ${status.total}.`
               : "Recorded."}
@@ -170,26 +213,28 @@ export default function UsagePage() {
           Query usage
         </h2>
         <form onSubmit={onQuery} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Agent</span>
-            <input
-              required
-              name="queryAgent"
-              value={queryAgent}
-              onChange={(e) => setQueryAgent(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Service ID</span>
-            <input
-              required
-              name="queryServiceId"
-              value={queryService}
-              onChange={(e) => setQueryService(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
+          <TextField
+            label="Agent"
+            required
+            name="queryAgent"
+            value={queryAgent}
+            onChange={(e) => {
+              setQueryAgent(e.target.value);
+              setQueryAgentError(null);
+            }}
+            error={queryAgentError ?? undefined}
+          />
+          <TextField
+            label="Service ID"
+            required
+            name="queryServiceId"
+            value={queryService}
+            onChange={(e) => {
+              setQueryService(e.target.value);
+              setQueryServiceError(null);
+            }}
+            error={queryServiceError ?? undefined}
+          />
           <button
             type="submit"
             disabled={isQuerying}

@@ -8,6 +8,15 @@ exports[`messages catalog matches the committed catalog snapshot 1`] = `
     "navLabel": "Dashboard surfaces",
     "surfacesIntro": "This dashboard exposes every read and write surface the backend provides: service registry, usage metering, billing quotes, audit log, webhooks, API keys, and admin pause/unpause. Use the links below to jump directly to each surface.",
   },
+  "docs": {
+    "heading": "API documentation",
+    "introCompanionPrefix": "Companion to ",
+    "introCompanionSuffix": " — short prose for the most common endpoints.",
+    "introOpenApi": "GET /api/v1/openapi.json",
+    "referenceLink": "dashboard API integration reference",
+    "referencePrefix": "For the complete request/response contract of every endpoint the dashboard calls, see the ",
+    "referenceSuffix": ".",
+  },
   "footer": {
     "text": "AgentPay — machine-to-machine payments on Stellar. Pay per request.",
   },
@@ -23,6 +32,18 @@ exports[`messages catalog matches the committed catalog snapshot 1`] = `
       "usage": "Record usage",
     },
     "quickLinksLabel": "Quick links",
+  },
+  "settings": {
+    "appearance": {
+      "description": "Choose a colour scheme. System follows your OS preference.",
+      "heading": "Appearance",
+    },
+    "connection": {
+      "description": "Resolved API base URL of the AgentPay backend.",
+      "heading": "Connection",
+      "label": "API Base URL",
+    },
+    "heading": "Settings",
   },
 }
 `;

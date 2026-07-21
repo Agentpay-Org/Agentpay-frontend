@@ -72,13 +72,15 @@ function MobileNav({
 
   useEffect(() => {
     if (menuOpen) {
-      const first = panelRef.current?.querySelector<HTMLElement>(
+      const first = panelRef.current!.querySelector<HTMLElement>(
         "a[role='menuitem'], a, [role='menuitem']"
       );
-      first?.focus?.();
+      if (first) {
+        first.focus();
+      }
       return;
     }
-    toggleRef.current?.focus?.();
+    toggleRef.current!.focus();
   }, [menuOpen]);
 
   return (
@@ -167,6 +169,7 @@ export function Header() {
 
   // Close desktop dropdown on route change.
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect
     setMoreOpen(false);
     setMobileOpen(false);
   }, [pathname]);

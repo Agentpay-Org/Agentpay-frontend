@@ -25,4 +25,11 @@ describe("Pagination", () => {
     fireEvent.click(screen.getByRole("button", { name: /previous/i }));
     expect(onChange).toHaveBeenCalledWith(1);
   });
+
+  it("calls onChange(1) when Previous is clicked on page 2", () => {
+    const onChange = jest.fn();
+    render(<Pagination page={2} pageCount={3} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /previous/i }));
+    expect(onChange).toHaveBeenCalledWith(1);
+  });
 });

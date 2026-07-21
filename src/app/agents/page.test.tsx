@@ -54,7 +54,10 @@ describe("AgentsPage", () => {
   // --- Loading state --------------------------------------------------------
 
   it("renders a spinner while the first page is loading", () => {
-    mockByUrl({ agents: new Promise(() => undefined) /* never resolves */ });
+    mockByUrl({
+      agents: new Promise(() => undefined), // never resolves
+      stats: new Promise(() => undefined), // never resolves
+    });
 
     render(<AgentsPage />);
 

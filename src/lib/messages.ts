@@ -43,6 +43,27 @@ export const messages = {
       "This dashboard exposes every read and write surface the backend provides: service registry, usage metering, billing quotes, audit log, webhooks, API keys, and admin pause/unpause. Use the links below to jump directly to each surface.",
     navLabel: "Dashboard surfaces",
   },
+  docs: {
+    heading: "API documentation",
+    introCompanionPrefix: "Companion to ",
+    introOpenApi: "GET /api/v1/openapi.json",
+    introCompanionSuffix: " — short prose for the most common endpoints.",
+    referencePrefix: "For the complete request/response contract of every endpoint the dashboard calls, see the ",
+    referenceLink: "dashboard API integration reference",
+    referenceSuffix: ".",
+  },
+  settings: {
+    heading: "Settings",
+    appearance: {
+      heading: "Appearance",
+      description: "Choose a colour scheme. System follows your OS preference.",
+    },
+    connection: {
+      heading: "Connection",
+      description: "Resolved API base URL of the AgentPay backend.",
+      label: "API Base URL",
+    },
+  },
 } as const;
 
 /**

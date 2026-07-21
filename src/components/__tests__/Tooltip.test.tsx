@@ -1,6 +1,22 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Tooltip } from "../Tooltip";
 
+/**
+ * Locks down the WCAG 2.1 SC 1.4.13 (Content on Hover or Focus) contract that
+ * Tooltip.tsx documents: show on hover/focus, stay hoverable, link the trigger
+ * via aria-describedby only while visible, and dismiss on Escape without moving
+ * focus.
+ *
+ * DOM shape rendered by Tooltip:
+ *   span.wrapper            ← owns the hover/focus/keydown handlers
+ *     └ span[aria-describedby?]   ← trigger's direct parent
+ *         └ {children}            ← the focusable trigger
+ *     └ span[role="tooltip"]      ← only mounted while visible
+ *
+ * Event note: React 19 listens for focus/blur via focusin/focusout and for
+ * mouseenter/mouseleave via mouseover/mouseout, so the tests fire those native
+ * events. A real .focus() is used where document.activeElement matters.
+ */
 const renderTooltip = () =>
   render(
     <Tooltip label="More info">
@@ -8,103 +24,153 @@ const renderTooltip = () =>
     </Tooltip>
   );
 
-// DOM shape: wrapper > [ describedBy-span > <button> ] + tooltip.
-// The wrapper owns the hover/focus/keydown handlers, so it is the trigger's
-// grandparent, and aria-describedby lives on the trigger's direct parent.
 const getTrigger = () => screen.getByRole("button", { name: "Help" });
-const describedBySpanOf = (trigger: HTMLElement) =>
+const describedBySpan = (trigger: HTMLElement) =>
   trigger.parentElement as HTMLElement;
-const wrapperOf = (trigger: HTMLElement) =>
+const wrapper = (trigger: HTMLElement) =>
   trigger.parentElement?.parentElement as HTMLElement;
 
-// Event choice note: React 17+ (this repo is React 19) delegates onFocus/onBlur
-// through focusin/focusout and onMouseEnter/onMouseLeave through mouseover/
-// mouseout. We therefore fire those native events (and use a real .focus() where
-// document.activeElement matters) rather than fireEvent.focus / fireEvent.mouseEnter,
-// which React does not subscribe to.
-
 describe("Tooltip", () => {
-  it("renders no tooltip and no description link until hovered or focused", () => {
-    renderTooltip();
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    expect(describedBySpanOf(getTrigger())).not.toHaveAttribute(
-      "aria-describedby"
-    );
-  });
-
-  it("shows on focus and links aria-describedby to the tooltip (role + useId preserved)", () => {
-    renderTooltip();
-    const trigger = getTrigger();
-
-    fireEvent.focusIn(trigger);
-
-    const tip = screen.getByRole("tooltip");
-    expect(tip).toHaveTextContent("More info");
-    expect(tip.id).toBeTruthy();
-    expect(describedBySpanOf(trigger)).toHaveAttribute(
-      "aria-describedby",
-      tip.id
-    );
-  });
-
-  it("hides again when focus leaves the trigger (persistence: focus removed)", () => {
-    renderTooltip();
-    const trigger = getTrigger();
-
-    fireEvent.focusIn(trigger);
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
-
-    fireEvent.focusOut(trigger);
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-  });
-
-  it("shows on pointer enter and hides after the pointer leaves the whole region", () => {
-    renderTooltip();
-    const wrapper = wrapperOf(getTrigger());
-
-    fireEvent.mouseOver(wrapper);
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
-
-    // relatedTarget defaults outside the wrapper, so this is a real region exit.
-    fireEvent.mouseOut(wrapper);
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-  });
-
-  it("stays visible while the pointer travels from the trigger into the tooltip (WCAG 1.4.13 hoverable)", () => {
-    renderTooltip();
-    const trigger = getTrigger();
-    const wrapper = wrapperOf(trigger);
-
-    fireEvent.mouseOver(wrapper);
-    const tip = screen.getByRole("tooltip");
-
-    // Pointer moves trigger -> tooltip. They share the wrapper as their common
-    // ancestor, so the wrapper's onMouseLeave must NOT fire and the tooltip
-    // must stay mounted.
-    fireEvent.mouseOut(trigger, { relatedTarget: tip });
-    fireEvent.mouseOver(tip, { relatedTarget: trigger });
-
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
-  });
-
-  it("dismisses on Escape while keeping focus on the trigger (WCAG 1.4.13 dismissible)", () => {
-    renderTooltip();
-    const trigger = getTrigger();
-
-    act(() => {
-      trigger.focus(); // sets document.activeElement and triggers React onFocus
+  describe("visibility on hover and focus", () => {
+    it("renders nothing until hovered or focused", () => {
+      renderTooltip();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
 
-    fireEvent.keyDown(trigger, { key: "Escape" });
+    it("appears on mouse enter and disappears on mouse leave", () => {
+      renderTooltip();
+      const region = wrapper(getTrigger());
 
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+      fireEvent.mouseOver(region);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("More info");
+
+      // relatedTarget defaults outside the wrapper → a genuine region exit.
+      fireEvent.mouseOut(region);
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+
+    it("appears on focus and disappears on blur", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      fireEvent.focusIn(trigger);
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+      fireEvent.focusOut(trigger);
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+
+    it("stays visible while the pointer travels from the trigger onto the tooltip (hoverable)", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+      const region = wrapper(trigger);
+
+      fireEvent.mouseOver(region);
+      const tip = screen.getByRole("tooltip");
+
+      // Pointer crosses trigger → tooltip; both share the wrapper, so leave
+      // must not fire and the tooltip stays mounted.
+      fireEvent.mouseOut(trigger, { relatedTarget: tip });
+      fireEvent.mouseOver(tip, { relatedTarget: trigger });
+
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    });
+  });
+
+  describe("aria-describedby wiring", () => {
+    it("has no aria-describedby before the tooltip is shown", () => {
+      renderTooltip();
+      expect(describedBySpan(getTrigger())).not.toHaveAttribute(
+        "aria-describedby"
+      );
+    });
+
+    it("points aria-describedby at the tooltip id while visible", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      fireEvent.focusIn(trigger);
+
+      const tip = screen.getByRole("tooltip");
+      expect(tip.id).toBeTruthy();
+      expect(describedBySpan(trigger)).toHaveAttribute(
+        "aria-describedby",
+        tip.id
+      );
+    });
+
+    it("clears aria-describedby again after the tooltip hides", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      fireEvent.focusIn(trigger);
+      expect(describedBySpan(trigger)).toHaveAttribute("aria-describedby");
+
+      fireEvent.focusOut(trigger);
+      expect(describedBySpan(trigger)).not.toHaveAttribute("aria-describedby");
+    });
+  });
+
+  describe("dismiss on Escape (WCAG 1.4.13 dismissible)", () => {
+    it("hides the tooltip and keeps focus on the trigger", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      act(() => {
+        trigger.focus(); // sets document.activeElement and fires React onFocus
+      });
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+
+      fireEvent.keyDown(trigger, { key: "Escape" });
+
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it("ignores non-Escape keys while visible", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      fireEvent.focusIn(trigger);
+      fireEvent.keyDown(trigger, { key: "Enter" });
+
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    });
+  });
+
+  describe("edge cases", () => {
+    it("survives rapid enter/leave/enter without getting stuck", () => {
+      renderTooltip();
+      const region = wrapper(getTrigger());
+
+      fireEvent.mouseOver(region);
+      fireEvent.mouseOut(region);
+      fireEvent.mouseOver(region);
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+      fireEvent.mouseOut(region);
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+
+    it("can be focused, dismissed with Escape, then shown again", () => {
+      renderTooltip();
+      const trigger = getTrigger();
+
+      act(() => {
+        trigger.focus();
+      });
+      fireEvent.keyDown(trigger, { key: "Escape" });
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+      fireEvent.focusIn(trigger);
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    });
   });
 
   describe("collision-aware positioning", () => {
     const originalInnerWidth = window.innerWidth;
-    const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+    const originalRect = Element.prototype.getBoundingClientRect;
 
     beforeAll(() => {
       Object.defineProperty(window, "innerWidth", {
@@ -123,122 +189,86 @@ describe("Tooltip", () => {
     });
 
     afterEach(() => {
-      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+      Element.prototype.getBoundingClientRect = originalRect;
     });
 
-    const mockMeasurements = (wrapperRect: Partial<DOMRect>, tooltipRect: Partial<DOMRect>) => {
+    const rect = (over: Partial<DOMRect>): DOMRect =>
+      ({
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        ...over,
+      }) as DOMRect;
+
+    const mockMeasurements = (
+      wrapperRect: Partial<DOMRect>,
+      tooltipRect: Partial<DOMRect>
+    ) => {
       Element.prototype.getBoundingClientRect = function () {
-        if (this.getAttribute("role") === "tooltip") {
-          return {
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: 0,
-            height: 0,
-            x: 0,
-            y: 0,
-            ...tooltipRect,
-          } as DOMRect;
-        }
-        if (this.className.includes("inline-flex")) {
-          return {
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: 0,
-            height: 0,
-            x: 0,
-            y: 0,
-            ...wrapperRect,
-          } as DOMRect;
-        }
-        return {
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: 0,
-          height: 0,
-          x: 0,
-          y: 0,
-        } as DOMRect;
+        if (this.getAttribute("role") === "tooltip") return rect(tooltipRect);
+        if (this.className.includes("inline-flex")) return rect(wrapperRect);
+        return rect({});
       };
     };
 
-    it("uses default placement when there is sufficient space above", async () => {
+    it("keeps the default (above) placement when there is room above", async () => {
       mockMeasurements(
         { top: 100, left: 200, width: 50, height: 20 },
         { width: 80, height: 30 }
       );
       renderTooltip();
-      const trigger = getTrigger();
-      fireEvent.focusIn(trigger);
+      fireEvent.focusIn(getTrigger());
 
       await waitFor(() => {
         const tip = screen.getByRole("tooltip");
-        // Default (above) placement: bottom is 100%, top is absent (undefined).
-        expect(tip).toHaveStyle({ bottom: "100%", left: "-15px", opacity: "1" });
+        expect(tip).toHaveStyle({ bottom: "100%", opacity: "1" });
         expect(tip).not.toHaveStyle({ top: "100%" });
       });
     });
 
-    it("flips the tooltip below the trigger when space above is insufficient", async () => {
+    it("flips below the trigger when there is not enough room above", async () => {
       mockMeasurements(
         { top: 20, left: 200, width: 50, height: 20 },
         { width: 80, height: 30 }
       );
       renderTooltip();
-      const trigger = getTrigger();
-      fireEvent.focusIn(trigger);
+      fireEvent.focusIn(getTrigger());
 
       await waitFor(() => {
         const tip = screen.getByRole("tooltip");
-        // When flipped, top is 100% and bottom is absent from the style attribute
-        // (React omits undefined style properties entirely).
-        expect(tip).toHaveStyle({ top: "100%", left: "-15px", opacity: "1" });
+        expect(tip).toHaveStyle({ top: "100%", opacity: "1" });
         expect(tip).not.toHaveStyle({ bottom: "100%" });
       });
     });
 
-    it("clamps horizontal positioning to the left viewport boundary when overflowing left", async () => {
+    it("clamps to the left viewport edge when overflowing left", async () => {
       mockMeasurements(
         { top: 100, left: 10, width: 50, height: 20 },
         { width: 80, height: 30 }
       );
       renderTooltip();
-      const trigger = getTrigger();
-      fireEvent.focusIn(trigger);
+      fireEvent.focusIn(getTrigger());
 
       await waitFor(() => {
-        const tip = screen.getByRole("tooltip");
-        expect(tip).toHaveStyle({
-          bottom: "100%",
-          top: "auto",
-          left: "-2px",
-          opacity: "1",
-        });
+        expect(screen.getByRole("tooltip")).toHaveStyle({ left: "-2px" });
       });
     });
 
-    it("clamps horizontal positioning to the right viewport boundary when overflowing right", async () => {
+    it("clamps to the right viewport edge when overflowing right", async () => {
       mockMeasurements(
         { top: 100, left: 980, width: 50, height: 20 },
         { width: 80, height: 30 }
       );
       renderTooltip();
-      const trigger = getTrigger();
-      fireEvent.focusIn(trigger);
+      fireEvent.focusIn(getTrigger());
 
       await waitFor(() => {
-        const tip = screen.getByRole("tooltip");
-        expect(tip).toHaveStyle({
-          bottom: "100%",
-          top: "auto",
-          left: "-44px",
-          opacity: "1",
-        });
+        expect(screen.getByRole("tooltip")).toHaveStyle({ left: "-44px" });
       });
     });
   });

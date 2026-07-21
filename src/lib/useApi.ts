@@ -29,9 +29,10 @@ export function useApi<T>(path: string | null): State<T> {
 
   useEffect(() => {
     if (path === null) return;
+    const controller = new AbortController();
     let cancelled = false;
     dispatch({ status: "loading" });
-    apiGet<T>(path)
+    apiGet<T>(path, { signal: controller.signal })
       .then((data) => !cancelled && dispatch({ status: "ok", data }))
       .catch(
         (e) =>
@@ -43,6 +44,7 @@ export function useApi<T>(path: string | null): State<T> {
       );
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [path]);
 

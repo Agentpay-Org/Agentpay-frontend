@@ -9,13 +9,10 @@ contract changes.
 | Hook | Source | Status |
 | --- | --- | --- |
 | `useApi` | `src/lib/useApi.ts` | Exported |
+| `useClipboard` | `src/lib/useClipboard.ts` | Exported |
 | `useDebounce` | `src/lib/useDebounce.ts` | Exported |
 | `useLocalState` | `src/lib/useLocalState.ts` | Exported |
-| `usePolling` | _none_ | Not currently exported in this repo |
-
-`usePolling` is mentioned in issue #97, but there is no `usePolling` file,
-export, or call site in `src/lib` or `src/app` at the time of this reference.
-Do not document or import a polling hook until one exists in source.
+| `usePolling` | `src/lib/usePolling.ts` | Exported |
 
 ## `useApi`
 
@@ -83,6 +80,85 @@ export function ChangelogPreview() {
 Use this hook for simple GET-backed client views that can be represented as
 loading, error, or successful data. For write actions or request bodies, use the
 helpers in `src/lib/apiClient.ts` directly.
+
+## `usePolling`
+
+```ts
+function usePolling<T>(
+  path: string | null,
+  intervalMs: number,
+  options?: { initialPaused?: boolean },
+): PollingState<T>;
+```
+
+Import from:
+
+```ts
+import { usePolling } from "@/lib/usePolling";
+```
+
+Return shape:
+
+```ts
+type PollingState<T> = {
+  status: "loading" | "error" | "ok";
+  data: T | null;
+  error: string | null;
+  lastUpdated: Date | null;
+  paused: boolean;
+  pause: () => void;
+  resume: () => void;
+  refresh: () => Promise<void>;
+};
+```
+
+Parameters:
+
+- `path`: backend API path passed to `apiGet<T>`. Pass `null` to skip fetching.
+- `intervalMs`: polling cadence in milliseconds.
+- `initialPaused`: starts without the initial fetch. Calling `resume()` fetches
+  immediately and starts the interval.
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- The hook fetches immediately unless `initialPaused` is true.
+- Polling uses the shared `apiGet` client, so base URL resolution, JSON parsing,
+  and API error handling stay consistent with other client views.
+- `pause()` clears the interval and prevents further automatic fetches.
+- `resume()` restarts polling and fetches immediately.
+- `refresh()` performs an on-demand fetch using the same path and resolves after
+  that request settles, so action handlers can await a follow-up status read.
+- Responses from superseded requests, paused/path-changed effects, and unmounted
+  components are ignored through an internal request id guard.
+- Successful responses update `lastUpdated`. Errors preserve the latest data, set
+  `status: "error"`, and expose a display-ready `error` string.
+
+Minimal real usage, based on `src/app/stats/page.tsx`:
+
+```tsx
+"use client";
+
+import { usePolling } from "@/lib/usePolling";
+
+type Stats = { totalRequests: number };
+
+export function StatsPreview() {
+  const state = usePolling<Stats>("/api/v1/stats", 5000);
+
+  if (state.error) {
+    return <p role="alert">{state.error}</p>;
+  }
+
+  return <p>{state.data?.totalRequests ?? 0} requests</p>;
+}
+```
+
+Use this hook for GET-backed views that need a repeated refresh cadence without
+copying `setInterval` cleanup, stale-response guards, and pause/resume handling
+into each page. Current adopters include the stats page and the admin status
+panel; the admin toggle awaits `refresh()` after pause/unpause actions so the
+visible status follows the backend result.
 
 ## `useDebounce`
 
@@ -204,9 +280,59 @@ browser, such as display modes, dismissed hints, or local filters. Do not store
 secrets, API keys, seed phrases, passwords, or private account material in
 localStorage.
 
+## `useClipboard`
+
+```ts
+function useClipboard(options?: { timeout?: number }): {
+  copy: (text: string) => Promise<boolean>;
+  copied: boolean;
+  error: Error | null;
+};
+```
+
+Import from:
+
+```ts
+import { useClipboard } from "@/lib/useClipboard";
+```
+
+Parameters:
+
+- `options.timeout`: milliseconds to keep the `copied` state as `true`. Defaults to `2000`.
+
+Return shape:
+
+- `copy`: asynchronous function to write text to the clipboard. Returns `true` on success and `false` on failure.
+- `copied`: boolean indicating if the most recent copy succeeded and is still within the timeout window.
+- `error`: the `Error` caught if `navigator.clipboard.writeText` fails or is rejected.
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- The hook manages an internal timer for resetting the `copied` state, which is automatically cleared if a new copy action happens before the timeout expires, or if the component unmounts.
+- `navigator.clipboard` may be unavailable in non-HTTPS contexts or without appropriate permissions. Failures update the `error` state.
+
+Minimal real usage, based on `src/components/CopyButton.tsx`:
+
+```tsx
+"use client";
+
+import { useClipboard } from "@/lib/useClipboard";
+
+export function CopyButton({ value }: { value: string }) {
+  const { copy, copied } = useClipboard({ timeout: 1500 });
+
+  return (
+    <button type="button" onClick={() => copy(value)}>
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+```
+
+Use this hook to extract clipboard interactions and timeout-based state resets from visual components.
+
 ## Coverage Note
 
 This reference covers every hook exported from `src/lib` at the time of writing:
-`useApi`, `useDebounce`, and `useLocalState`. It also records that `usePolling`
-does not currently exist, so contributors do not accidentally import an
-undocumented hook name.
+`useApi`, `useClipboard`, `usePolling`, `useDebounce`, and `useLocalState`.

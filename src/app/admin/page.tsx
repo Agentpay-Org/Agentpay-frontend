@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-import { apiGet, apiPost } from "@/lib/apiClient";
-import { AlertError } from "@/components/AlertError";
+import { apiPost } from "@/lib/apiClient";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PageShell } from "@/components/PageShell";
 import { StatusDot } from "@/components/StatusDot";
 import { useToast } from "@/components/ToastProvider";
+import { usePolling } from "@/lib/usePolling";
 
 type AdminStatus = { paused: boolean };
 
@@ -20,6 +20,8 @@ type ToggleState = {
   confirmDescription: string;
   confirmLabel: string;
 };
+
+const ADMIN_STATUS_POLL_INTERVAL_MS = 5000;
 
 const getToggleState = (paused: boolean): ToggleState => {
   if (paused) {
@@ -45,38 +47,20 @@ const getToggleState = (paused: boolean): ToggleState => {
 
 export default function AdminPage() {
   const toast = useToast();
+  const {
+    data: status,
+    error: pollingError,
+    refresh: refreshStatus,
+  } = usePolling<AdminStatus>(
+    "/api/v1/admin/status",
+    ADMIN_STATUS_POLL_INTERVAL_MS
+  );
 
-  const [paused, setPaused] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const paused = status?.paused ?? null;
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  /**
-   * Latest-wins stale-status guard.
-   *
-   * Each call to `load()` increments a monotonically increasing sequence number.
-   * Only the response for the latest in-flight call is allowed to update `paused`/`error`.
-   * This prevents out-of-order fetch responses from clobbering a newer state.
-   */
-  const loadSeqRef = useRef(0);
-
-  const load = useCallback(async () => {
-    const callSeq = ++loadSeqRef.current;
-    setError(null);
-
-    try {
-      const b = await apiGet<AdminStatus>("/api/v1/admin/status");
-      if (callSeq !== loadSeqRef.current) return;
-      setPaused(b.paused);
-    } catch (e) {
-      if (callSeq !== loadSeqRef.current) return;
-      setError((e as Error).message);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const error = actionError ?? pollingError;
 
   const toggleState = useMemo(() => {
     if (paused === null) return null;
@@ -93,14 +77,14 @@ export default function AdminPage() {
   }, [toggleState]);
 
   const refreshAfterAction = useCallback(async () => {
-    await load();
-  }, [load]);
+    await refreshStatus();
+  }, [refreshStatus]);
 
   const onConfirm = useCallback(async () => {
     if (paused === null || !endpoint) return;
 
     setConfirmOpen(false);
-    setError(null);
+    setActionError(null);
     setPending(true);
 
     try {
@@ -109,7 +93,7 @@ export default function AdminPage() {
       await refreshAfterAction();
     } catch (e) {
       const message = (e as Error).message;
-      setError(message);
+      setActionError(message);
       toast.push(message, "error");
     } finally {
       setPending(false);
@@ -117,10 +101,8 @@ export default function AdminPage() {
   }, [endpoint, paused, refreshAfterAction, toast]);
 
   const onOpenConfirm = useCallback(() => {
-    if (paused === null) return;
-    if (pending) return;
     setConfirmOpen(true);
-  }, [paused, pending]);
+  }, []);
 
   const statusVariant = paused ? "down" : "ok";
 
@@ -164,7 +146,6 @@ export default function AdminPage() {
             void onConfirm();
           }}
           onCancel={() => {
-            if (pending) return;
             setConfirmOpen(false);
           }}
         />

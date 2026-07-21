@@ -9,6 +9,15 @@ const variants: Record<Variant, string> = {
   danger: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
 };
 
+/**
+ * Renders a small visual badge with text.
+ * 
+ * Variants:
+ * - neutral: Default state for standard information (zinc/gray).
+ * - ok: Positive or successful state (emerald/green).
+ * - warning: Attention or pending state (amber/yellow).
+ * - danger: Critical, error, or destructive state (rose/red).
+ */
 export function Badge({
   children,
   variant = "neutral",

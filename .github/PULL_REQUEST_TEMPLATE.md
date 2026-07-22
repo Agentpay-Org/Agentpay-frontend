@@ -18,14 +18,10 @@
 
 Paste the result or explain why a docs-only change did not require the command.
 
-- [ ] 
-pm run lint`
-- [ ] 
-pm run typecheck`
-- [ ] 
-pm test`
-- [ ] 
-pm run build`
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run build`
 
 ## Coverage and tests
 

@@ -140,8 +140,7 @@ describe("README docs consistency checks", () => {
     const commands = [
       "npm run build",
       "npm run test",
-      // README lists 
-pm run test:coverage`; some repo snapshots may not define it.
+      // README lists `npm run test:coverage`; some repo snapshots may not define it.
       // We'll validate the command string exists in README, but only assert the script exists
       // when it is present in package.json.
       "npm run test:coverage",

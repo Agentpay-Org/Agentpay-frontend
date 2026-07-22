@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell } from "@/components/PageShell";
 import Link from "next/link";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { SearchBar } from "@/components/SearchBar";

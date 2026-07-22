@@ -1,3 +1,4 @@
+import { PageShell } from "@/components/PageShell";
 import { EmptyState } from "@/components/EmptyState";
 import { getEntries, type ChangelogEntry } from "./entries";
 

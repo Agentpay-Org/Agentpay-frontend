@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell } from "@/components/PageShell";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";

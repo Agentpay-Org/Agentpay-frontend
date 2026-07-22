@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell } from "@/components/PageShell";
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";

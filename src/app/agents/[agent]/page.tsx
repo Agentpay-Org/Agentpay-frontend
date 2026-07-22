@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
 import { formatRequests, truncateMiddle } from "@/lib/format";
@@ -42,11 +43,7 @@ export default function AgentDetailPage({
   const total = totalState?.agent === agent ? totalState.total : null;
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <Breadcrumb
         items={[
           { label: "Agents", href: "/agents" },

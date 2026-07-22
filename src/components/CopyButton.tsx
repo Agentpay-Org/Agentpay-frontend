@@ -2,6 +2,8 @@
 
 import { useClipboard } from "../lib/useClipboard";
 
+const COPIED_LABEL = "Copied";
+
 /**
  * Copies `value` to the clipboard on click and shows "Copied" for 1500 ms.
  * Silently no-ops when `navigator.clipboard` is unavailable (e.g. non-HTTPS)

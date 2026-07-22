@@ -1,3 +1,4 @@
+import { PageShell } from "@/components/PageShell";
 import { resolveApiBase } from "@/lib/resolveApiBase";
 import { ExportActions } from "./ExportActions";
 
@@ -15,6 +16,6 @@ export default function ExportPage() {
         file via Content-Disposition.
       </p>
       <ExportActions apiBase={API_BASE} />
-    </main>
+    </PageShell>
   );
 }

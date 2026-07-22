@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
-import { apiGet } from "./apiClient";
+import { useCallback, useEffect, useReducer } from "react";
+import { apiGet, ApiTimeoutError } from "./apiClient";
 
-type State<T> =
+export type ApiErrorKind = "timeout" | "generic";
+
+export type ApiErrorState = {
+  status: "error";
+  error: string;
+  errorKind: ApiErrorKind;
+  isTimeout: boolean;
+  retry: () => void;
+};
+
+export type State<T> =
   | { status: "loading" }
-  | { status: "error"; error: string }
+  | ApiErrorState
   | { status: "ok"; data: T };
 
 /**
@@ -18,7 +28,14 @@ type State<T> =
  * @example
  * const state = useApi<{ items: AppEvent[] }>("/api/v1/events?limit=100");
  * if (state.status === "loading") return <Spinner label="Loading events" />;
- * if (state.status === "error") return <p role="alert">{state.error}</p>;
+ * if (state.status === "error") {
+ *   return (
+ *     <div>
+ *       <p role="alert">{state.error}</p>
+ *       {state.isTimeout && <button onClick={state.retry}>Retry</button>}
+ *     </div>
+ *   );
+ * }
  * return <EventList items={state.data.items} />;
  */
 export function useApi<T>(path: string | null): State<T> {
@@ -26,6 +43,11 @@ export function useApi<T>(path: string | null): State<T> {
     (_state: State<T>, action: State<T>) => action,
     { status: "loading" } as State<T>
   );
+  const [reloadToken, bumpReloadToken] = useReducer((s: number) => s + 1, 0);
+
+  const retry = useCallback(() => {
+    bumpReloadToken();
+  }, []);
 
   useEffect(() => {
     if (path === null) return;
@@ -34,19 +56,30 @@ export function useApi<T>(path: string | null): State<T> {
     dispatch({ status: "loading" });
     apiGet<T>(path, { signal: controller.signal })
       .then((data) => !cancelled && dispatch({ status: "ok", data }))
-      .catch(
-        (e) =>
-          !cancelled &&
-          dispatch({
-            status: "error",
-            error: (e as Error).message ?? "failed to load",
-          })
-      );
+      .catch((e) => {
+        if (cancelled) return;
+        const isTimeout =
+          e instanceof ApiTimeoutError ||
+          (e instanceof Error && e.name === "ApiTimeoutError");
+        const errorKind: ApiErrorKind = isTimeout ? "timeout" : "generic";
+        const errorMsg = isTimeout
+          ? "Request timed out. Please try again."
+          : (e as Error).message ?? "failed to load";
+
+        dispatch({
+          status: "error",
+          error: errorMsg,
+          errorKind,
+          isTimeout,
+          retry,
+        });
+      });
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [path]);
+  }, [path, reloadToken, retry]);
 
   return state;
 }
+

@@ -22,6 +22,10 @@ All requests go through the lightweight `fetch` wrapper in
 | Timeout | Default **10 000 ms**; on expiry the call rejects with `ApiTimeoutError` | `apiClient.ts` |
 | Success | 2xx JSON body is returned as the generic `T` | `apiClient.ts` |
 
+### Timeout and Error Handling
+
+Calls timing out after the default **10 000 ms** reject with an `ApiTimeoutError`. The `useApi` hook detects `ApiTimeoutError` instances and exposes a distinct error kind (`errorKind: "timeout"`, `isTimeout: true`) along with a user-facing timeout message (`"Request timed out. Please try again."`) and a `retry()` callback affordance rather than flattening it into a generic HTTP failure.
+
 ### Error envelope (`ApiError`)
 
 Non-2xx responses are expected to carry this JSON envelope; the wrapper throws an

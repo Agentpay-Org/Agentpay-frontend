@@ -3,6 +3,7 @@ import AgentDetailPage from "./page";
 import { apiGet } from "@/lib/apiClient";
 
 jest.mock("@/lib/apiClient", () => ({
+  ...jest.requireActual("@/lib/apiClient"),
   apiGet: jest.fn(),
 }));
 

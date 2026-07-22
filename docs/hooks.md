@@ -29,9 +29,17 @@ import { useApi } from "@/lib/useApi";
 Return shape:
 
 ```ts
+type ApiErrorKind = "timeout" | "generic";
+
 type State<T> =
   | { status: "loading" }
-  | { status: "error"; error: string }
+  | {
+      status: "error";
+      error: string;
+      errorKind: ApiErrorKind;
+      isTimeout: boolean;
+      retry: () => void;
+    }
   | { status: "ok"; data: T };
 ```
 
@@ -49,8 +57,8 @@ Behaviour and gotchas:
 - If the component unmounts or `path` changes before a response settles, the
   stale response is ignored through an internal cancellation flag.
 - `path: null` skips fetching and leaves the existing state unchanged.
-- Errors expose `error` as a display-ready string derived from the thrown
-  `Error.message`, with `"failed to load"` as a fallback.
+- Detects `ApiTimeoutError` and sets `errorKind: "timeout"`, `isTimeout: true`, and `"Request timed out. Please try again."`. Generic errors set `errorKind: "generic"`, `isTimeout: false`, and `Error.message` (or `"failed to load"`).
+- Provides a `retry()` callback affordance on the error state to trigger a refetch of the path.
 
 Minimal real usage, based on `src/app/changelog/page.tsx`:
 

@@ -565,3 +565,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, branch
 ## License
 
 MIT
+
+## Stats freshness
+
+The stats page polls `GET /api/v1/stats` every five seconds, shows when the
+latest successful response arrived, and keeps that timestamp visible if a
+later poll fails. Polling can be paused and resumed with the page control.

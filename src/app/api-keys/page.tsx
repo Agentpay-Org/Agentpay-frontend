@@ -112,7 +112,10 @@ export default function ApiKeysPage() {
           role="status"
           className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm"
         >
-          <p className="font-medium">New key - copy now, shown only once.</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium">New key - copy now, shown only once.</p>
+            <CopyButton value={created} label="Copy" />
+          </div>
           <div className="flex items-center gap-2 font-mono text-sm">
             <code className="flex-1 break-all">
               {showFull ? created : maskedKey}
@@ -124,7 +127,6 @@ export default function ApiKeysPage() {
             >
               {showFull ? "Hide" : "Reveal"}
             </button>
-            <CopyButton value={created} label="Copy" />
           </div>
           <button type="button" onClick={onDismiss}>
             Done - I have saved it

@@ -184,7 +184,7 @@ it("shows the panel masked after key creation", async () => {
     screen.getByRole("button", { name: "Create" }).closest("form")!,
   );
   await waitFor(() => expect(screen.getByText(/New key/i)).toBeInTheDocument());
-  const panel = screen.getByText(/New key/i).closest("div")!;
+  const panel = screen.getByText(/New key/i).closest('[role="status"]')!;
   expect(panel).not.toHaveTextContent(FAKE_KEY);
   expect(panel).toHaveTextContent("****");
 });
@@ -200,7 +200,7 @@ it("reveals the full key when Reveal is clicked", async () => {
   );
   await waitFor(() => screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
-  expect(screen.getByText(/New key/i).closest("div")!).toHaveTextContent(
+  expect(screen.getByText(/New key/i).closest('[role="status"]')!).toHaveTextContent(
     FAKE_KEY,
   );
   expect(screen.getByRole("button", { name: "Hide" })).toHaveAttribute(
@@ -221,7 +221,7 @@ it("hides the key again when Hide is clicked", async () => {
   await waitFor(() => screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Hide" }));
-  expect(screen.getByText(/New key/i).closest("div")!).not.toHaveTextContent(
+  expect(screen.getByText(/New key/i).closest('[role="status"]')!).not.toHaveTextContent(
     FAKE_KEY,
   );
 });
@@ -242,6 +242,11 @@ it("copies the full key to clipboard", async () => {
   await waitFor(() =>
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(FAKE_KEY),
   );
+  expect(screen.getByText(/New key/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copied" })).toHaveAttribute(
+    "aria-live",
+    "polite",
+  );
 });
 
 it("removes the panel when Done is clicked", async () => {
@@ -259,10 +264,9 @@ it("removes the panel when Done is clicked", async () => {
 });
 
 it("handles clipboard unavailable without throwing", async () => {
-  Object.assign(navigator, {
-    clipboard: {
-      writeText: jest.fn().mockRejectedValue(new Error("no clipboard")),
-    },
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: undefined,
   });
   mockFetchCreate();
   render(<ApiKeysPage />);
@@ -278,4 +282,31 @@ it("handles clipboard unavailable without throwing", async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     })
   ).resolves.not.toThrow();
+  expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+});
+
+it("does not show a copy action when key creation fails", async () => {
+  globalThis.fetch = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+    } as unknown as Response)
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: async () => "creation failed",
+    } as unknown as Response);
+
+  render(<ApiKeysPage />);
+  fireEvent.change(screen.getByLabelText("Label"), {
+    target: { value: "test" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Create" }).closest("form")!,
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Request failed");
+  expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
 });

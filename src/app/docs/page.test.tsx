@@ -5,7 +5,7 @@ import { safeHref } from "@/lib/url";
 // Mock resolveApiBase since it depends on environment variables. The base is
 // mutable so individual tests can simulate a misconfigured env var reaching
 // the page.
-let mockApiBase = "https://api.example.com";
+const mockApiBase = "https://api.example.com";
 jest.mock("@/lib/resolveApiBase", () => ({
   ...jest.requireActual("@/lib/resolveApiBase"),
   resolveApiBase: () => mockApiBase,
@@ -47,7 +47,7 @@ describe("DocsPage", () => {
   });
 
   it("renders link labels as plain text when safeHref rejects the URLs", () => {
-    safeHrefMock.mockReturnValue({ ok: false });
+    (safeHref as jest.Mock).mockReturnValue({ ok: false });
     render(<DocsPage />);
 
     const openApiLabel = screen.getByText(/GET \/api\/v1\/openapi\.json/);
@@ -71,7 +71,7 @@ describe("DocsPage", () => {
   });
   it('renders correctly with default and empty parameters to hit 100% coverage', () => {
     (safeHref as jest.Mock).mockReturnValue({ ok: false });
-    const { rerender } = render(<DocsPage />);
+    render(<DocsPage />);
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
 
     // Restore mock for other tests if necessary (not strictly needed as it's the last test, but good practice)

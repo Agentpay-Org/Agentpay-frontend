@@ -162,7 +162,7 @@ export default function EventsPage() {
   }, [visibleItems]);
 
   const totalVisible = visibleItems?.length ?? 0;
-  const isTruncated = totalVisible > MAX_RENDERED_EVENTS;
+  const isTruncated = totalVisible > MAX_RENDERED_ROWS;
   const exportDisabled = loading || totalVisible === 0;
 
   const handleExportCsv = () => {

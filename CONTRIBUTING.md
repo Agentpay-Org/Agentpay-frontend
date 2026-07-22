@@ -57,7 +57,10 @@ npm run lint
 npm run typecheck
 ```
 
-The current CI workflow runs `npm ci`, `npm run build`, and `npm test` on pushes and pull requests targeting `main`. Running lint and typecheck locally is still expected for reviewer confidence because both scripts are available in `package.json`.
+The current CI workflow runs 
+pm ci`, 
+pm run build`, and 
+pm test` on pushes and pull requests targeting `main`. Running lint and typecheck locally is still expected for reviewer confidence because both scripts are available in `package.json`.
 
 For test-heavy changes, keep coverage high for the touched area. Campaign issues may ask for a 95% coverage bar; when they do, include the coverage command and result in the pull request notes.
 
@@ -100,8 +103,12 @@ Before requesting review, confirm:
 
 - The PR is scoped to one issue or one cohesive change.
 - Relevant tests were added or updated.
-- `npm run build` and `npm test` were run, or the reason they were not run is documented.
-- `npm run lint` and `npm run typecheck` were run for code changes.
+- 
+pm run build` and 
+pm test` were run, or the reason they were not run is documented.
+- 
+pm run lint` and 
+pm run typecheck` were run for code changes.
 - Documentation was updated when behavior, setup, or contributor workflow changed.
 - No secrets, tokens, `.env` files, or generated build artifacts were committed.
 - UI changes preserve keyboard and screen-reader behavior.

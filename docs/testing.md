@@ -52,6 +52,7 @@ These files are fully tested and locked at their current coverage level. Any PR 
 | `src/components/ConfirmDialog.tsx` | 100% | 94% | 100% | 100% |
 | `src/components/Header.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/Pagination.tsx` | 100% | 100% | 100% | 100% |
+| `src/components/PageSkeleton.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/TextField.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/ThemeToggle.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/ToastProvider.tsx` | 100% | 100% | 100% | 100% |

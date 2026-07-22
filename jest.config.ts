@@ -33,6 +33,7 @@ const config: Config = {
     "./src/components/Footer.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Header.tsx": { statements: 100, branches: 87, functions: 90, lines: 100 },
     "./src/components/Pagination.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
+    "./src/components/PageSkeleton.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/TextField.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/ThemeToggle.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/TimeAgo.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },

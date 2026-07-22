@@ -26,14 +26,22 @@ Dashboard and Stellar wallet integration for the AgentPay protocol (machine-to-m
    npm install
    ```
 
-3. **Verify setup**:
+3. **Configure environment variables (optional)**:
+
+   Copy [.env.example](.env.example) to `.env.local` to customize local environment settings:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. **Verify setup**:
 
    ```bash
    npm run build
    npm test
    ```
 
-4. **Run locally**:
+5. **Run locally**:
    ```bash
    npm run dev
    ```
@@ -275,6 +283,8 @@ every backend endpoint the dashboard calls — request bodies, response shapes, 
 shared `ApiError` envelope, the 204/no-body convention, and pause-flag semantics.
 
 ## Environment variables
+
+See [.env.example](.env.example) for a reference template documenting all supported environment variables, default values, inline comments, and origin constraints.
 
 | Variable                        | Visibility                      | Default                 | Purpose                                                                                                                                                                         |
 | ------------------------------- | ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

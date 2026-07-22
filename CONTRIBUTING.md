@@ -80,7 +80,15 @@ Follow the existing accessibility patterns:
 
 Route API work through the helpers in `src/lib/`, especially `src/lib/apiClient.ts` and `src/lib/useApi.ts`, unless a task explicitly requires a different integration path.
 
-## Pull Request Checklist
+## Contributor Templates
+
+Use the GitHub templates to keep issues and reviews consistent:
+
+- [Bug report](.github/ISSUE_TEMPLATE/bug_report.yml) for route/component defects with reproduction steps and expected behavior.
+- [Feature request](.github/ISSUE_TEMPLATE/feature_request.yml) for product or contributor-experience improvements.
+- [Pull request template](.github/PULL_REQUEST_TEMPLATE.md) for lint, typecheck, test, build, accessibility, and security notes.
+
+
 
 Include the issue reference and summarize the reviewer-relevant changes:
 

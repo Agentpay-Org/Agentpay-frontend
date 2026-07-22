@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose a focused AgentPay frontend improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep requests scoped to one user workflow, route, component, or contributor-experience improvement.
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: Which route, component, or workflow would change?
+      placeholder: "/api-keys, /services/:serviceId/edit, docs, contributor workflow"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or contributor problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the expected behavior and any important UI or API details.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional tradeoffs, non-goals, or simpler variants.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List reviewer-checkable outcomes.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: quality
+    attributes:
+      label: Quality notes
+      description: Mention lint, typecheck, tests, build, accessibility, security, or coverage expectations.
+      value: |
+        - Accessibility:
+        - Security/trust boundary:
+        - Tests or coverage:

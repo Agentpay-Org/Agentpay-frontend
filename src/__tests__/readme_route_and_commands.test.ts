@@ -172,3 +172,46 @@ describe("README docs consistency checks", () => {
   });
 });
 
+
+describe("contributor templates", () => {
+  test("GitHub issue forms capture reproduction, route, and expected behavior", () => {
+    const bug = fs.readFileSync(
+      path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "bug_report.yml"),
+      "utf8"
+    );
+    const feature = fs.readFileSync(
+      path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "feature_request.yml"),
+      "utf8"
+    );
+
+    expect(bug).toContain("Affected route or component");
+    expect(bug).toContain("Reproduction steps");
+    expect(bug).toContain("Expected behavior");
+    expect(bug).toContain("Accessibility and security notes");
+    expect(feature).toContain("Acceptance criteria");
+    expect(feature).toContain("Quality notes");
+  });
+
+  test("pull request template covers required local checks", () => {
+    const pr = fs.readFileSync(
+      path.join(process.cwd(), ".github", "PULL_REQUEST_TEMPLATE.md"),
+      "utf8"
+    );
+
+    for (const command of ["npm run lint", "npm run typecheck", "npm test", "npm run build"]) {
+      expect(pr).toContain(command);
+    }
+
+    expect(pr).toContain("Accessibility and UI review");
+    expect(pr).toContain("Security review");
+    expect(pr).toContain("Coverage and tests");
+  });
+
+  test("CONTRIBUTING links the contributor templates", () => {
+    const contributing = fs.readFileSync(path.join(process.cwd(), "CONTRIBUTING.md"), "utf8");
+
+    expect(contributing).toContain(".github/ISSUE_TEMPLATE/bug_report.yml");
+    expect(contributing).toContain(".github/ISSUE_TEMPLATE/feature_request.yml");
+    expect(contributing).toContain(".github/PULL_REQUEST_TEMPLATE.md");
+  });
+});

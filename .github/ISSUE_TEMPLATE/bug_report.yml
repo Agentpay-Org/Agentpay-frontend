@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible AgentPay frontend bug
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve AgentPay. Please include enough detail for maintainers to reproduce the issue without guessing.
+  - type: input
+    id: route
+    attributes:
+      label: Affected route or component
+      description: Name the page, route, or component where the bug appears.
+      placeholder: "/services/new or src/components/TextField.tsx"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the smallest set of steps that triggers the bug.
+      placeholder: |
+        1. Open ...
+        2. Enter ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened, including error text or screenshots when safe to share.
+    validations:
+      required: true
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: Browser or environment
+      multiple: true
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Mobile browser
+        - CI / test environment
+        - Other
+  - type: textarea
+    id: checks
+    attributes:
+      label: Local checks
+      description: Paste relevant command output or explain why it was not run.
+      value: |
+        - npm run lint:
+        - npm run typecheck:
+        - npm test:
+        - npm run build:
+  - type: textarea
+    id: accessibility-security
+    attributes:
+      label: Accessibility and security notes
+      description: Include keyboard/screen-reader impact, affected trust boundary, or secret-handling concern if relevant.

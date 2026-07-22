@@ -172,3 +172,26 @@ describe("README docs consistency checks", () => {
   });
 });
 
+
+describe("security disclosure documentation", () => {
+  test("SECURITY.md documents supported versions, reporting, scope, and header architecture", () => {
+    const policy = fs.readFileSync(path.join(process.cwd(), "SECURITY.md"), "utf8");
+
+    expect(policy).toContain("## Supported versions");
+    expect(policy).toContain("| `main` | Yes |");
+    expect(policy).toContain("## Reporting a vulnerability");
+    expect(policy).toContain("private vulnerability reporting");
+    expect(policy).toContain("## Response expectations");
+    expect(policy).toContain("## Scope");
+    expect(policy).toContain("docs/security-headers.md");
+    expect(policy).toContain("src/lib/securityHeaders.ts");
+  });
+
+  test("README and CONTRIBUTING link to SECURITY.md", () => {
+    const readme = fs.readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const contributing = fs.readFileSync(path.join(process.cwd(), "CONTRIBUTING.md"), "utf8");
+
+    expect(readme).toContain("[SECURITY.md](SECURITY.md)");
+    expect(contributing).toContain("[SECURITY.md](SECURITY.md)");
+  });
+});

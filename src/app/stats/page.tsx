@@ -16,17 +16,9 @@ export default function StatsPage() {
   const error = statsState.error;
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
       {stats && (
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
@@ -52,6 +44,6 @@ export default function StatsPage() {
           The backend is currently paused — writes are refused.
         </p>
       )}
-    </main>
+    </PageShell>
   );
 }

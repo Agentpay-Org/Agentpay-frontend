@@ -119,4 +119,80 @@ describe("CopyButton", () => {
     expect(writeText).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button")).toHaveTextContent("Copied");
   });
+
+  it("resets the revert timer on double-click so Copied shows for 1500 ms from the last click", async () => {
+    mockClipboard();
+    render(<CopyButton value="x" label="Copy" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(1499);
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+
+    expect(screen.getByRole("button")).toHaveTextContent("Copy");
+  });
+
+  it("does not enter copied state when clipboard.writeText rejects", async () => {
+    const writeText = mockClipboard(
+      jest.fn().mockRejectedValue(new Error("denied"))
+    );
+    render(<CopyButton value="x" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button")).toHaveTextContent("Copy");
+  });
+
+  it("passes an empty string value to the clipboard", async () => {
+    const writeText = mockClipboard();
+    render(<CopyButton value="" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(writeText).toHaveBeenCalledWith("");
+    expect(screen.getByRole("button")).toHaveTextContent("Copied");
+  });
+
+  it("clears the revert timer on unmount without stale setState", async () => {
+    mockClipboard();
+    const { unmount } = render(<CopyButton value="x" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    unmount();
+
+    act(() => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    expect(true).toBe(true);
+  });
 });

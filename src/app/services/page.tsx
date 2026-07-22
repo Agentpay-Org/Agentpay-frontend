@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
 import { truncateMiddle } from "@/lib/format";
@@ -70,11 +72,7 @@ export default function ServicesPage() {
   }, [requestedPage]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <header className="flex items-baseline justify-between">
         <h1 className="text-3xl font-semibold tracking-tight">Services</h1>
         <Link
@@ -84,11 +82,7 @@ export default function ServicesPage() {
           New service
         </Link>
       </header>
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
       {loading && (
         <div className="flex justify-center py-10">
           <Spinner label="Loading services" />
@@ -138,6 +132,6 @@ export default function ServicesPage() {
           onChange={onPageChange}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

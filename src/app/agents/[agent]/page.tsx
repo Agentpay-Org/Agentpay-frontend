@@ -103,6 +103,6 @@ export default function AgentDetailPage({
           ))}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }

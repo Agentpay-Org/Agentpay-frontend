@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { apiPost } from "@/lib/apiClient";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PageShell } from "@/components/PageShell";
 import { StatusDot } from "@/components/StatusDot";
 import { useToast } from "@/components/ToastProvider";
 import { usePolling } from "@/lib/usePolling";
@@ -108,11 +109,7 @@ export default function AdminPage() {
   const toggleButtonLabel = paused ? "Unpause" : "Pause";
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="xl">
       <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
 
       {paused === null && !error && <p>Loading status…</p>}
@@ -154,12 +151,8 @@ export default function AdminPage() {
         />
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
-    </main>
+      <AlertError message={error} />
+    </PageShell>
   );
 }
 

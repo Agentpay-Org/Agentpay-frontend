@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet, apiPatch } from "@/lib/apiClient";
+import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/ToastProvider";

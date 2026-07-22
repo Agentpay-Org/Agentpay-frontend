@@ -84,11 +84,7 @@ export default function ServiceAgentsPage({
   const isTruncated = totalVisible > MAX_RENDERED_ROWS;
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <Link
         href={`/services/${encodeURIComponent(serviceId)}`}
         className="text-sm text-zinc-500 hover:underline"
@@ -150,6 +146,6 @@ export default function ServiceAgentsPage({
       {!loading && !error && (
         <Pagination page={page} pageCount={pageCount} onChange={onPageChange} />
       )}
-    </main>
+    </PageShell>
   );
 }

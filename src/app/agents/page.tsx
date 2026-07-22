@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
 
@@ -35,13 +37,14 @@ export default function AgentsPage() {
   const [requestedPage, setRequestedPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
 
-  // Stats are loaded once at mount and shown as a summary above the list.
   useEffect(() => {
+    let cancelled = false;
     apiGet<StatsResponse>("/api/v1/stats")
-      .then(setStats)
+      .then((s) => { if (!cancelled) setStats(s); })
       .catch(() => {
         /* stats summary is optional — a failure is silent */
       });
+    return () => { cancelled = true; };
   }, []);
 
   const onPageChange = (nextPage: number) => {
@@ -88,11 +91,7 @@ export default function AgentsPage() {
   }, [requestedPage]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Agents</h1>
 
       {/* Stats summary sourced from /api/v1/stats */}
@@ -103,11 +102,7 @@ export default function AgentsPage() {
         </p>
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
 
       {loading && (
         <div className="flex justify-center py-10">
@@ -141,6 +136,6 @@ export default function AgentsPage() {
       {!loading && !error && (
         <Pagination page={page} pageCount={pageCount} onChange={onPageChange} />
       )}
-    </main>
+    </PageShell>
   );
 }

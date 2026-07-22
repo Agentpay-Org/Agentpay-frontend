@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { messages } from "@/lib/messages";
+import { PageShell } from "@/components/PageShell";
 
 export const metadata = { title: "About — AgentPay" };
 
@@ -15,11 +16,7 @@ const surfaces = [
 
 export default function AboutPage() {
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-2xl flex-col gap-4 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="2xl" gap="4">
       <h1 className="text-3xl font-semibold tracking-tight">
         {messages.about.heading}
       </h1>
@@ -43,6 +40,6 @@ export default function AboutPage() {
           ))}
         </ul>
       </nav>
-    </main>
+    </PageShell>
   );
 }

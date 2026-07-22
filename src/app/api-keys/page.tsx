@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
 import { EmptyState } from "@/components/EmptyState";
@@ -35,7 +36,7 @@ export default function ApiKeysPage() {
       .catch((e: Error) => setError(e.message));
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const onCreate = async (e: React.FormEvent) => {
@@ -72,11 +73,7 @@ export default function ApiKeysPage() {
     : "";
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <ConfirmDialog
         open={pendingRevoke !== null}
         title="Revoke API key?"
@@ -134,11 +131,7 @@ export default function ApiKeysPage() {
         </div>
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      <AlertError message={error} />
 
       {items && items.length === 0 && (
         <div role="status">
@@ -186,6 +179,6 @@ export default function ApiKeysPage() {
           })}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }

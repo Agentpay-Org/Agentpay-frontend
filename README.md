@@ -90,6 +90,9 @@ agentpay-frontend/
     └── ci.yml                                    # CI: build, test
 ```
 
+## Security
+
+Please report suspected vulnerabilities privately. See [SECURITY.md](SECURITY.md) for supported versions, response expectations, disclosure scope, and the private reporting path. The CSP and browser header architecture is documented in [docs/security-headers.md](docs/security-headers.md).
 ## Route architecture
 
 For a detailed breakdown of each route's responsibility, render mode (server vs client), nested layout, and backend endpoints, see [docs/architecture.md](docs/architecture.md).

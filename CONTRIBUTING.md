@@ -100,7 +100,7 @@ Before requesting review, confirm:
 
 ## Security Notes
 
-Never commit API keys, wallet seeds, private keys, `.env` files, or production credentials. If a change touches authentication, wallet integration, payments, or API calls, add a short security note to the PR describing the trust boundary and what was validated.
+Never commit API keys, wallet seeds, private keys, `.env` files, or production credentials. If a change touches authentication, wallet integration, payments, or API calls, add a short security note to the PR describing the trust boundary and what was validated. Report suspected vulnerabilities through the private process in [SECURITY.md](SECURITY.md), not in public issues.
 
 ## Community and Rewards
 

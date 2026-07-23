@@ -2,6 +2,7 @@
 
 import { AlertError } from "@/components/AlertError";
 import { PageShell } from "@/components/PageShell";
+import { TimeAgo } from "@/components/TimeAgo";
 import { usePolling } from "@/lib/usePolling";
 
 type Stats = {
@@ -16,11 +17,25 @@ export default function StatsPage() {
   const statsState = usePolling<Stats>("/api/v1/stats", 5000);
   const stats = statsState.data;
   const error = statsState.error;
+  const lastUpdated = statsState.lastUpdated;
 
   return (
     <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
       <AlertError message={error} />
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p>
+          Last updated: {lastUpdated ? <TimeAgo ts={lastUpdated.getTime()} /> : "Never"}
+        </p>
+        <button
+          type="button"
+          aria-pressed={statsState.paused}
+          onClick={statsState.paused ? statsState.resume : statsState.pause}
+          className="rounded-md border border-zinc-300 px-3 py-1.5 font-medium text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          {statsState.paused ? "Resume polling" : "Pause polling"}
+        </button>
+      </div>
       {stats && (
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[

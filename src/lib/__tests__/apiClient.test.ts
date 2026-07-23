@@ -757,4 +757,172 @@ describe("apiClient", () => {
     await jest.advanceTimersByTimeAsync(100);
     expect(fetchSignal?.aborted).toBe(false);
   });
+
+  describe("GET request deduplication", () => {
+    it("deduplicates concurrent GET requests with the same path", async () => {
+      let resolveFetch!: (value: Response) => void;
+      const fetchMock = jest.fn(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+      const promise1 = apiGet<{ ok: boolean }>("/api/v1/things");
+      const promise2 = apiGet<{ ok: boolean }>("/api/v1/things");
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      resolveFetch!(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+      const [r1, r2] = await Promise.all([promise1, promise2]);
+      expect(r1).toEqual({ ok: true });
+      expect(r2).toEqual({ ok: true });
+    });
+
+    it("does not deduplicate requests made to different paths", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+
+      await Promise.all([
+        apiGet("/api/v1/foo"),
+        apiGet("/api/v1/bar"),
+      ]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("uses distinct cache keys for different query strings", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+
+      await Promise.all([
+        apiGet("/api/v1/things?limit=10"),
+        apiGet("/api/v1/things?limit=20"),
+      ]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("evicts the cache entry after the request settles so a second call re-fetches", async () => {
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+
+      await apiGet("/api/v1/things");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await apiGet("/api/v1/things");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("evicts the cache entry when the request fails", async () => {
+      const fetchMock = jest
+        .fn()
+        .mockRejectedValueOnce(new Error("Network failure"))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+
+      await expect(apiGet("/api/v1/things")).rejects.toThrow("Network failure");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await expect(apiGet("/api/v1/things")).resolves.toEqual({ ok: true });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cancel the shared fetch when one subscriber aborts", async () => {
+      let resolveFetch!: (value: Response) => void;
+      const fetchMock = jest.fn(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+
+      const controller1 = new AbortController();
+      const controller2 = new AbortController();
+
+      const promise1 = apiGet<{ ok: boolean }>("/api/v1/things", {
+        signal: controller1.signal,
+      });
+      const promise2 = apiGet<{ ok: boolean }>("/api/v1/things", {
+        signal: controller2.signal,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const abortReason = new Error("Caller cancelled");
+      abortReason.name = "AbortError";
+      controller1.abort(abortReason);
+
+      resolveFetch!(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+      const [r1, r2] = await Promise.all([promise1, promise2]);
+      expect(r1).toEqual({ ok: true });
+      expect(r2).toEqual({ ok: true });
+    });
+
+    it("does not deduplicate POST, PATCH or DELETE requests", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiPost, apiPatch, apiDelete } = await loadApiClient();
+
+      await Promise.all([
+        apiPost("/api/v1/things", { name: "x" }),
+        apiPost("/api/v1/things", { name: "x" }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      await Promise.all([
+        apiPatch("/api/v1/things/1", { name: "x" }),
+        apiPatch("/api/v1/things/1", { name: "x" }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+
+      await Promise.all([
+        apiDelete("/api/v1/things/1"),
+        apiDelete("/api/v1/things/1"),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+    });
+
+    it("respects headers passed to the deduped request", async () => {
+      const fetchMock = jest.fn(
+        async (_url: string, init?: RequestInit) => {
+          const headers = init?.headers as Record<string, string>;
+          expect(headers["Authorization"]).toBe("Bearer token-123");
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        },
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+      const { apiGet } = await loadApiClient();
+      await apiGet("/api/v1/things", {
+        headers: { Authorization: "Bearer token-123" },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

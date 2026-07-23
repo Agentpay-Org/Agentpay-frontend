@@ -60,6 +60,12 @@ function createHttpError(status: number, body: unknown, statusText = "") {
   });
 }
 
+const pendingGets = new Map<string, Promise<unknown>>();
+
+function resolveUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 /**
  * Fetch JSON from the AgentPay API.
  *
@@ -139,8 +145,21 @@ export async function apiFetch<T>(
   }
 }
 
-export function apiGet<T>(path: string, init: ApiFetchInit = {}) {
-  return apiFetch<T>(path, init);
+export function apiGet<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
+  const url = resolveUrl(path);
+  const existing = pendingGets.get(url);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+  const { signal: callerSignal, ...sharedInit } = init;
+  void callerSignal;
+  const promise = apiFetch<T>(path, sharedInit).finally(() => {
+    if (pendingGets.get(url) === promise) {
+      pendingGets.delete(url);
+    }
+  });
+  pendingGets.set(url, promise);
+  return promise;
 }
 
 export function apiPost<T>(

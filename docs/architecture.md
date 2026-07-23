@@ -135,3 +135,67 @@ find src/app -name page.tsx
 ```
 
 Every path in the table maps to a real `page.tsx`. The server/client designation was validated by inspecting the presence (or absence) of `"use client"` at the top of each file.
+
+---
+
+## Bundle budgets
+
+Every route has a **first-load JS budget** defined in [`bundle-budgets.json`](../bundle-budgets.json) at the repository root.
+
+### How it works
+
+1. After `next build` completes, [`scripts/check-bundle-budgets.mjs`](../scripts/check-bundle-budgets.mjs) parses the build output table to extract each route's `First Load JS` value.
+2. Each value is compared against the route's budget in `bundle-budgets.json`.
+3. Budget status is determined as:
+
+   | Usage % | Status |
+   |---------|--------|
+   | `< 90%` | ✅ ok |
+   | `≥ 90%` | ⚠️ warn (comment only, does not fail) |
+   | `> 100%` | ❌ fail (exits with code 1) |
+
+4. A `bundle-report.json` artifact is uploaded alongside the coverage report.
+5. On pull requests, the per-route comparison is posted as a PR comment merged with the coverage summary.
+
+### Budget config (`bundle-budgets.json`)
+
+- **`routes`** — a flat map of route pattern → budget in kB. Dynamic segments use the filesystem convention (`[agent]`, `[serviceId]`).
+- **`_meta.warn_at_pct`** — the percentage threshold at which a route is flagged as a warning (default `90`).
+- **`_meta.unit`** — the size unit (always `kB`).
+
+### Raising a budget
+
+Budgets should be set to the current baseline when first introduced. To raise a budget:
+
+1. Edit `bundle-budgets.json` in a dedicated PR.
+2. The PR review serves as the explicit decision to accept the increase.
+3. Once merged, the new ceiling applies to all subsequent builds.
+
+### When budgets are added for new routes
+
+When a new `page.tsx` is added under `src/app/`:
+
+1. Run `npm run build` locally.
+2. Note the `First Load JS` value for the new route.
+3. Add an entry to the `routes` map in `bundle-budgets.json`.
+4. Include this entry in the same PR that introduces the route.
+
+### CI integration
+
+See `.github/workflows/ci.yml` for the full pipeline. Key steps:
+
+```yaml
+- name: Build
+  run: npm run build
+
+- name: Check bundle budgets
+  run: node scripts/check-bundle-budgets.mjs
+  continue-on-error: true
+
+- name: Upload bundle report
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: bundle-report
+    path: bundle-report.json
+```

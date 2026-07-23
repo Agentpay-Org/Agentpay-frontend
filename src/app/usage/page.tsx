@@ -6,9 +6,33 @@ import { TextField } from "@/components/TextField";
 import type { ApiError } from "@/lib/apiClient";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
 import { validateIdentifier } from "@/lib/validateId";
+
+type PresetKey = "24h" | "7d" | "30d" | "custom";
+
+function toISODate(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+function daysAgo(days: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d;
+}
+
+function hoursAgo(hours: number): Date {
+  const d = new Date();
+  d.setHours(d.getHours() - hours);
+  return d;
+}
+
+const PRESET_RANGES: Record<Exclude<PresetKey, "custom">, { start: () => Date; end: () => Date; label: string }> = {
+  "24h": { start: () => hoursAgo(24), end: () => new Date(), label: "Last 24 hours" },
+  "7d": { start: () => daysAgo(7), end: () => new Date(), label: "Last 7 days" },
+  "30d": { start: () => daysAgo(30), end: () => new Date(), label: "Last 30 days" },
+};
 
 type QueryResult = {
   agent: string;
@@ -66,8 +90,33 @@ export default function UsagePage() {
     null,
   );
   const [queryResult, setQueryResult] = useState<QueryStatus>({ kind: "idle" });
+  const [activePreset, setActivePreset] = useState<PresetKey>("custom");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const isRecording = status.kind === "loading";
   const isQuerying = queryResult.kind === "loading";
+
+  const dateRangeAnnouncement = useMemo(() => {
+    if (activePreset === "custom") {
+      if (!startDate && !endDate) return "Showing all usage data (no date filter).";
+      if (startDate && endDate) return `Showing usage from ${startDate} to ${endDate}.`;
+      if (startDate) return `Showing usage from ${startDate} onwards.`;
+      return `Showing usage up to ${endDate}.`;
+    }
+    return `Showing ${PRESET_RANGES[activePreset].label}.`;
+  }, [activePreset, startDate, endDate]);
+
+  const applyPreset = (key: PresetKey) => {
+    setActivePreset(key);
+    if (key === "custom") {
+      setStartDate("");
+      setEndDate("");
+    } else {
+      const range = PRESET_RANGES[key];
+      setStartDate(toISODate(range.start()));
+      setEndDate(toISODate(range.end()));
+    }
+  };
 
   const onRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -118,10 +167,14 @@ export default function UsagePage() {
     setQueryResult({ kind: "loading" });
 
     try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const qs = params.toString();
       const result = await apiGet<QueryResult>(
         `/api/v1/usage/${encodeURIComponent(parsedAgent.value)}/${encodeURIComponent(
           parsedServiceId.value,
-        )}`,
+        )}${qs ? `?${qs}` : ""}`,
       );
       setQueryResult({ kind: "ok", result: result ?? null });
     } catch (error) {
@@ -212,6 +265,63 @@ export default function UsagePage() {
         <h2 id="query-heading" className="text-xl font-medium">
           Query usage
         </h2>
+        <div className="flex flex-col gap-3">
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Date range
+            </legend>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Date range presets">
+              {(Object.keys(PRESET_RANGES) as Array<Exclude<PresetKey, "custom">>).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={activePreset === key}
+                  onClick={() => applyPreset(key)}
+                  className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                >
+                  {PRESET_RANGES[key].label}
+                </button>
+              ))}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={activePreset === "custom"}
+                onClick={() => applyPreset("custom")}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                Custom
+              </button>
+            </div>
+            {activePreset === "custom" && (
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-zinc-500">Start</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    aria-label="Start date"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-zinc-500">End</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    aria-label="End date"
+                  />
+                </label>
+              </div>
+            )}
+          </fieldset>
+          <p role="status" aria-live="polite" className="text-xs text-zinc-500 dark:text-zinc-400">
+            {dateRangeAnnouncement}
+          </p>
+        </div>
         <form onSubmit={onQuery} className="flex flex-col gap-3">
           <TextField
             label="Agent"

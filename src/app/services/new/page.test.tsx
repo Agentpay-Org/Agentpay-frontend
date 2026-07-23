@@ -67,12 +67,17 @@ describe("NewServicePage", () => {
 
     // Verify error attaches to the price field
     expect(priceInput).toHaveAttribute("aria-invalid", "true");
-    const descId = priceInput.getAttribute("aria-describedby");
-    expect(descId).toBeTruthy();
+    const describedBy = priceInput.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
 
-    const errorElement = document.getElementById(descId!);
+    // aria-describedby contains both descId and errId
+    const ids = describedBy!.split(/\s+/);
+    const errId = ids[1];
+    const errorElement = document.getElementById(errId);
     expect(errorElement).toBeInTheDocument();
-    expect(errorElement).toHaveTextContent("Price must be a non-negative integer.");
+    expect(errorElement).toHaveTextContent(
+      "Price must be a non-negative integer between 0 and 9,007,199,254,740,991.",
+    );
 
     // The page-level alert should not be displayed
     expect(screen.queryByRole("alert", { name: /Price must be/i })).toBeNull();
@@ -93,12 +98,16 @@ describe("NewServicePage", () => {
 
     // Verify error attaches to the price field
     expect(priceInput).toHaveAttribute("aria-invalid", "true");
-    const descId = priceInput.getAttribute("aria-describedby");
-    expect(descId).toBeTruthy();
+    const describedBy = priceInput.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
 
-    const errorElement = document.getElementById(descId!);
+    const ids = describedBy!.split(/\s+/);
+    const errId = ids[1];
+    const errorElement = document.getElementById(errId);
     expect(errorElement).toBeInTheDocument();
-    expect(errorElement).toHaveTextContent("Price must be a non-negative integer.");
+    expect(errorElement).toHaveTextContent(
+      "Price must be a non-negative integer between 0 and 9,007,199,254,740,991.",
+    );
   });
 
   it("shows validation error on empty price", async () => {
@@ -116,12 +125,16 @@ describe("NewServicePage", () => {
 
     // Verify error attaches to the price field
     expect(priceInput).toHaveAttribute("aria-invalid", "true");
-    const descId = priceInput.getAttribute("aria-describedby");
-    expect(descId).toBeTruthy();
+    const describedBy = priceInput.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
 
-    const errorElement = document.getElementById(descId!);
+    const ids = describedBy!.split(/\s+/);
+    const errId = ids[1];
+    const errorElement = document.getElementById(errId);
     expect(errorElement).toBeInTheDocument();
-    expect(errorElement).toHaveTextContent("Price must be a non-negative integer.");
+    expect(errorElement).toHaveTextContent(
+      "Price must be a non-negative integer between 0 and 9,007,199,254,740,991.",
+    );
   });
 
   it("submits the form successfully with valid inputs and redirects", async () => {
@@ -227,12 +240,16 @@ describe("NewServicePage", () => {
     expect(apiPostMock).not.toHaveBeenCalled();
 
     expect(priceInput).toHaveAttribute("aria-invalid", "true");
-    const descId = priceInput.getAttribute("aria-describedby");
-    expect(descId).toBeTruthy();
+    const describedBy = priceInput.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
 
-    const errorElement = document.getElementById(descId!);
+    const ids = describedBy!.split(/\s+/);
+    const errId = ids[1];
+    const errorElement = document.getElementById(errId);
     expect(errorElement).toBeInTheDocument();
-    expect(errorElement).toHaveTextContent("Price must be a non-negative integer.");
+    expect(errorElement).toHaveTextContent(
+      "Price must be a non-negative integer between 0 and 9,007,199,254,740,991.",
+    );
   });
 
   it("accepts price of zero", async () => {

@@ -71,6 +71,12 @@ type Rollup    = { serviceId: string; total: number; agents: number };
 type TopAgents = { serviceId: string; items: { agent: string; total: number }[] };
 ```
 
+> **Client-side validation**: `priceStroops` is parsed by `parseNonNegativeInt` in
+> [`src/lib/validateNumber.ts`](../src/lib/validateNumber.ts), which rejects values
+> outside `0 … 9,007,199,254,740,991` (`Number.MAX_SAFE_INTEGER`), exponent notation
+> (e.g. `"1e2"`), and whitespace-padded input. The accepted range is shown as a field
+> hint on both the create (`services/new`) and edit (`services/[serviceId]/edit`) forms.
+
 ## Usage
 
 | Method & path | Type | Request body | Response shape | Source |

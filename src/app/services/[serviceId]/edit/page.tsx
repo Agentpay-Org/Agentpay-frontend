@@ -140,6 +140,7 @@ export default function EditServicePage({
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             error={error}
+            description="Accepted range: 0 – 9,007,199,254,740,991 stroops"
           />
           <button
             type="submit"

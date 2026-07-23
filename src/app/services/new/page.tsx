@@ -60,6 +60,7 @@ export default function NewServicePage() {
           value={priceStroops}
           onChange={(e) => setPriceStroops(e.target.value)}
           error={priceError || undefined}
+          description="Accepted range: 0 – 9,007,199,254,740,991 stroops"
         />
 
         <Button

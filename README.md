@@ -565,3 +565,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, branch
 ## License
 
 MIT
+
+The newly created API key panel includes a copy button beside its once-only warning, allowing operators to copy the full key without revealing it on screen.

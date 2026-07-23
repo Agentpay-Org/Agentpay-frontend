@@ -46,6 +46,7 @@ These files are fully tested and locked at their current coverage level. Any PR 
 | File | Statements | Branches | Functions | Lines |
 |------|-----------|----------|-----------|-------|
 | `src/app/page.tsx` | 100% | 100% | 100% | 100% |
+| `src/app/docs/DocsFilter.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/Badge.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/Breadcrumb.tsx` | 100% | 100% | 100% | 100% |
 | `src/components/Card.tsx` | 100% | 100% | 100% | 100% |

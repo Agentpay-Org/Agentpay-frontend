@@ -1,4 +1,11 @@
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+  within,
+} from "@testing-library/react";
 import ApiKeysPage from "./page";
 
 const FAKE_KEY = "sk_live_abc123secretvalue";
@@ -154,7 +161,7 @@ it("calls DELETE and closes dialog when confirmed", async () => {
 
 // --- reveal-once panel ---
 
-function mockFetchCreate() {
+function mockFetchCreate(createdKey = FAKE_KEY) {
   globalThis.fetch = jest
     .fn()
     .mockResolvedValueOnce({
@@ -165,7 +172,7 @@ function mockFetchCreate() {
     .mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ key: FAKE_KEY }),
+      json: async () => ({ key: createdKey }),
     } as unknown as Response)
     .mockResolvedValue({
       ok: true,
@@ -184,7 +191,7 @@ it("shows the panel masked after key creation", async () => {
     screen.getByRole("button", { name: "Create" }).closest("form")!,
   );
   await waitFor(() => expect(screen.getByText(/New key/i)).toBeInTheDocument());
-  const panel = screen.getByText(/New key/i).closest('[role="status"]')!;
+  const panel = screen.getByRole("region", { name: /New key/i });
   expect(panel).not.toHaveTextContent(FAKE_KEY);
   expect(panel).toHaveTextContent("****");
 });
@@ -200,7 +207,7 @@ it("reveals the full key when Reveal is clicked", async () => {
   );
   await waitFor(() => screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
-  expect(screen.getByText(/New key/i).closest('[role="status"]')!).toHaveTextContent(
+  expect(screen.getByRole("region", { name: /New key/i })).toHaveTextContent(
     FAKE_KEY,
   );
   expect(screen.getByRole("button", { name: "Hide" })).toHaveAttribute(
@@ -221,9 +228,88 @@ it("hides the key again when Hide is clicked", async () => {
   await waitFor(() => screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
   fireEvent.click(screen.getByRole("button", { name: "Hide" }));
-  expect(screen.getByText(/New key/i).closest('[role="status"]')!).not.toHaveTextContent(
-    FAKE_KEY,
+  expect(
+    screen.getByRole("region", { name: /New key/i }),
+  ).not.toHaveTextContent(FAKE_KEY);
+});
+
+it("announces only the key visibility state", async () => {
+  mockFetchCreate();
+  render(<ApiKeysPage />);
+  fireEvent.change(screen.getByLabelText("Label"), {
+    target: { value: "test" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Create" }).closest("form")!,
   );
+
+  const visibilityStatus = await screen.findByRole("status", {
+    name: "API key visibility",
+  });
+  expect(visibilityStatus).toHaveTextContent("API key is hidden.");
+
+  fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+  expect(visibilityStatus).toHaveTextContent("API key is visible.");
+  screen
+    .getAllByRole("status")
+    .forEach((status) => expect(status).not.toHaveTextContent(FAKE_KEY));
+
+  fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+  expect(visibilityStatus).toHaveTextContent("API key is hidden.");
+});
+
+it("keeps a very long key masked until the user reveals it", async () => {
+  const longKey = `sk_live_${"x".repeat(512)}`;
+  mockFetchCreate(longKey);
+  render(<ApiKeysPage />);
+  fireEvent.change(screen.getByLabelText("Label"), {
+    target: { value: "test" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Create" }).closest("form")!,
+  );
+
+  const panel = await screen.findByRole("region", { name: /New key/i });
+  expect(panel).not.toHaveTextContent(longKey);
+  expect(panel).toHaveTextContent("sk_****");
+
+  fireEvent.click(within(panel).getByRole("button", { name: "Reveal" }));
+  expect(within(panel).getByText(longKey)).toBeInTheDocument();
+
+  fireEvent.click(within(panel).getByRole("button", { name: "Hide" }));
+  expect(panel).not.toHaveTextContent(longKey);
+});
+
+it("keeps the toggle and announcement in sync during rapid changes", async () => {
+  mockFetchCreate();
+  render(<ApiKeysPage />);
+  fireEvent.change(screen.getByLabelText("Label"), {
+    target: { value: "test" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Create" }).closest("form")!,
+  );
+
+  const panel = await screen.findByRole("region", { name: /New key/i });
+  const toggle = within(panel).getByRole("button", { name: "Reveal" });
+  const visibilityStatus = within(panel).getByRole("status", {
+    name: "API key visibility",
+  });
+
+  act(() => {
+    for (let click = 0; click < 10; click += 1) toggle.click();
+  });
+
+  expect(toggle).toHaveAttribute("aria-pressed", "false");
+  expect(toggle).toHaveTextContent("Reveal");
+  expect(visibilityStatus).toHaveTextContent("API key is hidden.");
+  expect(panel).not.toHaveTextContent(FAKE_KEY);
+
+  act(() => toggle.click());
+  expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(toggle).toHaveTextContent("Hide");
+  expect(visibilityStatus).toHaveTextContent("API key is visible.");
+  expect(panel).toHaveTextContent(FAKE_KEY);
 });
 
 it("copies the full key to clipboard", async () => {

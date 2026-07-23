@@ -138,7 +138,7 @@ the validated identifiers before placing them in the path.
 
 ### API keys page notes
 
-The `/api-keys` page lists each key label, prefix, and created-at age with the absolute ISO timestamp available on hover. If the account has no keys, the page renders a clear "No API keys yet" empty state instead of an empty list while preserving the create, reveal-once, copy, and revoke confirmation flows.
+The `/api-keys` page lists each key label, prefix, and created-at age with the absolute ISO timestamp available on hover. If the account has no keys, the page renders a clear "No API keys yet" empty state instead of an empty list while preserving the create, reveal-once, copy, and revoke confirmation flows. A newly created key stays masked by default, keeps its full-value copy action available while masked, and announces only whether the value is hidden or visible when the Reveal/Hide toggle changes.
 
 ### Services edit page notes
 

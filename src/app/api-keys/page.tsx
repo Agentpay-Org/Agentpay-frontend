@@ -108,30 +108,42 @@ export default function ApiKeysPage() {
       </form>
 
       {created && (
-        <div
-          role="status"
+        <section
+          aria-labelledby="created-key-heading"
           className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm"
         >
           <div className="flex items-center justify-between gap-2">
-            <p className="font-medium">New key - copy now, shown only once.</p>
+            <p id="created-key-heading" className="font-medium">
+              New key - copy now, shown only once.
+            </p>
             <CopyButton value={created} label="Copy" />
           </div>
           <div className="flex items-center gap-2 font-mono text-sm">
-            <code className="flex-1 break-all">
+            <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
             <button
               type="button"
               aria-pressed={showFull}
+              aria-controls="created-api-key"
               onClick={() => setShowFull((v) => !v)}
             >
               {showFull ? "Hide" : "Reveal"}
             </button>
           </div>
+          <p
+            role="status"
+            aria-label="API key visibility"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            API key is {showFull ? "visible" : "hidden"}.
+          </p>
           <button type="button" onClick={onDismiss}>
             Done - I have saved it
           </button>
-        </div>
+        </section>
       )}
 
       <AlertError message={error} />

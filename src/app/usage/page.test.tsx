@@ -1,19 +1,29 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UsagePage from "./page";
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiGet, apiPost } from "@/lib/apiClient";`nimport { downloadCsv } from "@/lib/csv";
 
 jest.mock("@/lib/apiClient", () => ({
   apiGet: jest.fn(),
   apiPost: jest.fn(),
 }));
 
+jest.mock("@/lib/csv", () => {
+  const actual = jest.requireActual("@/lib/csv");
+  return {
+    ...actual,
+    downloadCsv: jest.fn(),
+  };
+});
+
 const apiGetMock = apiGet as jest.MockedFunction<typeof apiGet>;
 const apiPostMock = apiPost as jest.MockedFunction<typeof apiPost>;
+const downloadCsvMock = downloadCsv as jest.MockedFunction<typeof downloadCsv>;
 
 describe("UsagePage", () => {
   beforeEach(() => {
     apiGetMock.mockReset();
     apiPostMock.mockReset();
+    downloadCsvMock.mockReset();
   });
 
   it("renders both Record and Query landmarks", () => {
@@ -184,6 +194,59 @@ describe("UsagePage", () => {
     expect(apiGetMock).toHaveBeenCalledWith("/api/v1/usage/a/s");
   });
 
+
+  it("exports the currently queried usage row as CSV", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      agent: "a",
+      serviceId: "s",
+      total: 12,
+    });
+
+    render(<UsagePage />);
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: " a " },
+    });
+    fireEvent.change(
+      screen.getByLabelText(/^Service ID$/i, {
+        selector: 'input[name="queryServiceId"]',
+      }),
+      {
+        target: { value: " s " },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Query/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("table", { name: /Usage results/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Export CSV/i }));
+
+    expect(downloadCsvMock).toHaveBeenCalledWith(
+      "agentpay-usage.csv",
+      "agent,serviceId,total\na,s,12",
+    );
+  });
+
+  it("keeps CSV export disabled when the current usage table is empty", async () => {
+    apiGetMock.mockResolvedValueOnce(null as never);
+
+    render(<UsagePage />);
+    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+      target: { value: "a" },
+    });
+    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[1], {
+      target: { value: "s" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Query/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/No usage rows match/i);
+    });
+
+    expect(screen.getByRole("button", { name: /Export CSV/i })).toBeDisabled();
+    expect(downloadCsvMock).not.toHaveBeenCalled();
+  });
   it("blocks query submit for too-long identifiers", async () => {
     render(<UsagePage />);
     const queryAgentInput = screen.getAllByLabelText(/^Agent$/i)[1];

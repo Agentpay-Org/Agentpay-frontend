@@ -306,6 +306,66 @@ instead of only inside the tooltip.
 
 ## Data Display
 
+### `DataTable`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `caption` | `ReactNode` | yes | Rendered as a visible `<caption>` above the table. Screen readers announce it as the table's accessible name. |
+| `columns` | `DataTableColumn<T>[]` | yes | See column shape below. |
+| `data` | `T[]` | yes | Rows to render, in the order they should appear before any sorting. |
+| `getRowKey` | `(row: T, index: number) => string \| number` | yes | Stable React key per row. |
+| `className` | `string` | no | Extra classes on the horizontal-scroll wrapper `div`. |
+| `captionClassName` | `string` | no | Extra classes on the `<caption>`. |
+| `defaultSortKey` | `string` | no | Column `key` sorted by on first render. |
+| `defaultSortDirection` | `"ascending" \| "descending"` | no | Defaults to `"ascending"`. |
+
+Each entry in `columns` is:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `key` | `string` | yes | Unique column id; doubles as the sort key. |
+| `header` | `ReactNode` | yes | Header cell content. |
+| `render` | `(row: T, index: number) => ReactNode` | yes | Cell content for a row. |
+| `rowHeader` | `boolean` | no | Renders the cell as `<th scope="row">` instead of `<td>`. Use on the column that identifies the row (e.g. a name or id). |
+| `align` | `"left" \| "center" \| "right"` | no | Text alignment for both the header and body cells. Defaults to `"left"`. |
+| `sortable` | `true` | no | When set, `sortAccessor` becomes required and the header renders as a button. |
+| `sortAccessor` | `(row: T) => string \| number` | when `sortable` | Comparable value used to order rows. Numbers compare numerically; everything else compares with `localeCompare`. |
+| `headerClassName` / `cellClassName` | `string` | no | Extra classes appended to the header or body cell. |
+
+Every header cell gets `scope="col"`. Sortable columns toggle between ascending
+and descending on click and set `aria-sort` (`"ascending"`, `"descending"`, or
+`"none"` when another sortable column is active) on the active `<th>`; the sort
+is a stable client-side sort that never mutates `data`. Non-sortable columns
+render as plain header text with no `aria-sort` attribute.
+
+```tsx
+<DataTable
+  caption="API keys"
+  data={items}
+  getRowKey={(item) => item.prefix}
+  columns={[
+    {
+      key: "label",
+      header: "Label",
+      rowHeader: true,
+      sortable: true,
+      sortAccessor: (item) => item.label,
+      render: (item) => item.label,
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      sortable: true,
+      sortAccessor: (item) => item.createdAtMs ?? Number.NEGATIVE_INFINITY,
+      render: (item) => <TimeAgo ts={item.createdAtMs} />,
+    },
+  ]}
+/>
+```
+
+Used by the API keys page (`src/app/api-keys/page.tsx`) in place of a hand-rolled
+list; prefer it over new bespoke `<ul>`/`<table>` markup for tabular data.
+
 ### `KeyValueGrid`
 
 | Prop | Type | Required | Notes |

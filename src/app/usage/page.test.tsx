@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UsagePage from "./page";
-import { apiGet, apiPost } from "@/lib/apiClient";`nimport { downloadCsv } from "@/lib/csv";
+import { apiGet, apiPost } from "@/lib/apiClient";
+import { downloadCsv } from "@/lib/csv";
 
 jest.mock("@/lib/apiClient", () => ({
   apiGet: jest.fn(),

@@ -64,19 +64,30 @@ it("shows an announced empty state when there are no API keys", async () => {
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
 });
 
-it("shows a safe placeholder when a key is missing created-at", async () => {
+it("shows a safe placeholder when a key has no usable created-at", async () => {
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,
     json: async () => ({
-      items: [{ prefix: "missing", label: "missing-created", createdAt: null }],
+      items: [
+        { prefix: "null", label: "null-created", createdAt: null },
+        { prefix: "undefined", label: "undefined-created" },
+        {
+          prefix: "invalid",
+          label: "invalid-created",
+          createdAt: "not-a-timestamp",
+        },
+      ],
     }),
   } as unknown as Response);
 
   render(<ApiKeysPage />);
 
-  await screen.findByText("missing-created");
-  expect(screen.getByTitle("—")).toHaveTextContent("—");
+  await screen.findByText("invalid-created");
+  expect(screen.getAllByTitle("—")).toHaveLength(3);
+  screen
+    .getAllByTitle("—")
+    .forEach((timestamp) => expect(timestamp).toHaveTextContent("—"));
 });
 
 it("keeps load errors visible without showing an empty state", async () => {

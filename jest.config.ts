@@ -31,7 +31,7 @@ const config: Config = {
     "./src/components/CopyButton.tsx": { statements: 95, branches: 95, functions: 95, lines: 95 },
     "./src/components/ConfirmDialog.tsx": { statements: 100, branches: 94, functions: 100, lines: 100 },
     "./src/components/Footer.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
-    "./src/components/Header.tsx": { statements: 100, branches: 87, functions: 90, lines: 100 },
+    "./src/components/Header.tsx": { statements: 95, branches: 95, functions: 95, lines: 95 },
     "./src/components/Pagination.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/TextField.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/ThemeToggle.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },

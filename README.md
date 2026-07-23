@@ -225,7 +225,7 @@ Key design decisions:
 
 ## Responsive header navigation
 
-On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu with a keyboard-operable toggle (Escape closes; focus returns to the toggle). The inline primary navigation remains for `md` and larger screens.
+On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu. Its real button exposes the menu state to assistive technology, the links remain in the natural Tab order, and Escape closes the menu and returns focus to the toggle. Navigation also closes the menu automatically. The inline primary navigation remains unchanged at `md` and larger screen widths.
 
 Additionally, the Header marks exactly one active route strictly utilizing `aria-current="page"` (leveraging the client-side `usePathname()` context), creating a robust "you are here" cue for assistive technologies.
 

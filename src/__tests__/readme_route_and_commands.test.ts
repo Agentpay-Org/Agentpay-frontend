@@ -170,5 +170,21 @@ describe("README docs consistency checks", () => {
     }
 
   });
-});
+  test("Dependabot is configured for npm and GitHub Actions updates", () => {
+    const dependabotPath = path.join(process.cwd(), ".github", "dependabot.yml");
+    const dependabot = fs.readFileSync(dependabotPath, "utf8");
+    const contributing = fs.readFileSync(path.join(process.cwd(), "CONTRIBUTING.md"), "utf8");
 
+    expect(dependabot).toContain('version: 2');
+    expect(dependabot).toContain('package-ecosystem: "npm"');
+    expect(dependabot).toContain('package-ecosystem: "github-actions"');
+    expect(dependabot).toContain('interval: "weekly"');
+    expect(dependabot).toContain('npm-minor-and-patch');
+    expect(dependabot).toContain('actions-minor-and-patch');
+    expect(dependabot).toContain('open-pull-requests-limit: 5');
+
+    expect(contributing).toContain("## Dependency Update Review");
+    expect(contributing).toContain("Dependabot pull requests");
+    expect(contributing).toContain("major-version updates should remain separate");
+  });
+});

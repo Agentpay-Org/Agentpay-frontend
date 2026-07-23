@@ -8,7 +8,7 @@ import { apiGet, apiPost } from "@/lib/apiClient";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
-import { validateIdentifier } from "@/lib/validateId";
+import { validateIdentifier } from "@/lib/validateId";`nimport { downloadCsv, usageRowsToCsv } from "@/lib/csv";
 
 type QueryResult = {
   agent: string;
@@ -68,6 +68,15 @@ export default function UsagePage() {
   const [queryResult, setQueryResult] = useState<QueryStatus>({ kind: "idle" });
   const isRecording = status.kind === "loading";
   const isQuerying = queryResult.kind === "loading";
+  const usageRows = queryResult.kind === "ok" && queryResult.result ? [queryResult.result] : [];
+  const canExportUsage = usageRows.length > 0;
+
+  const onExportUsageCsv = () => {
+    if (!canExportUsage) {
+      return;
+    }
+    downloadCsv("agentpay-usage.csv", usageRowsToCsv(usageRows));
+  };
 
   const onRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -243,11 +252,61 @@ export default function UsagePage() {
             {isQuerying ? <Spinner label="Querying…" /> : "Query"}
           </button>
         </form>
-        {queryResult.kind === "ok" && queryResult.result && (
-          <p role="status" className="text-sm">
-            {queryResult.result.agent} / {queryResult.result.serviceId}:{" "}
-            <strong>{queryResult.result.total}</strong> request(s).
-          </p>
+        {queryResult.kind === "ok" && (
+          <div className="flex flex-col gap-3">
+            {queryResult.result ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p role="status" className="text-sm">
+                    {queryResult.result.agent} / {queryResult.result.serviceId}:{" "}
+                    <strong>{queryResult.result.total}</strong> request(s).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onExportUsageCsv}
+                    disabled={!canExportUsage}
+                    className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-zinc-700"
+                  >
+                    Export CSV
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <table className="min-w-full text-left text-sm" aria-label="Usage results">
+                    <thead className="bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+                      <tr>
+                        <th scope="col" className="px-4 py-2 font-medium">Agent</th>
+                        <th scope="col" className="px-4 py-2 font-medium">Service ID</th>
+                        <th scope="col" className="px-4 py-2 font-medium">Requests</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageRows.map((row) => (
+                        <tr key={`${row.agent}:${row.serviceId}`}>
+                          <td className="px-4 py-2">{row.agent}</td>
+                          <td className="px-4 py-2">{row.serviceId}</td>
+                          <td className="px-4 py-2">{row.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+                  No usage rows match the current query.
+                </p>
+                <button
+                  type="button"
+                  onClick={onExportUsageCsv}
+                  disabled
+                  className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium opacity-50 dark:border-zinc-700"
+                >
+                  Export CSV
+                </button>
+              </div>
+            )}
+          </div>
         )}
         {queryResult.kind === "error" && (
           <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">

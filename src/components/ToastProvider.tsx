@@ -8,7 +8,9 @@ import {
   type ReactNode,
 } from "react";
 
-type Toast = { id: string; message: string; level: "info" | "error" };
+export type ToastLevel = "info" | "error" | "success" | "warning";
+
+type Toast = { id: string; message: string; level: ToastLevel };
 type Ctx = { push: (m: string, level?: Toast["level"]) => void };
 
 const ToastCtx = createContext<Ctx | null>(null);
@@ -20,10 +22,14 @@ const AUTO_DISMISS_MS = 4000;
  * Provides the `useToast()` hook and renders the toast stack.
  *
  * Accessibility:
- * - The stack is a single `aria-live="polite"` region. `aria-atomic` is set
- *   *per toast* (not on the container) so adding a new toast announces only
- *   that toast rather than re-reading the whole stack. Error toasts use
- *   `role="alert"` (assertive) and info toasts use `role="status"` (polite).
+ * - The stack container acts as a status region while each individual toast
+ *   manages its own accessibility properties dynamically based on severity:
+ *   - Error toasts (`error`) use `role="alert"` and `aria-live="assertive"` so screen readers
+ *     can interrupt and announce them immediately.
+ *   - Info, success, and warning toasts (`info`, `success`, `warning`) use `role="status"`
+ *     and `aria-live="polite"` for non-intrusive announcements.
+ * - `aria-atomic` is set *per toast* (not on the container) so adding a new toast
+ *   announces only that toast rather than re-reading the whole stack.
  * - Each toast carries a real `<button>` dismiss affordance with an
  *   `aria-label`, so keyboard and screen-reader users can remove a toast
  *   immediately instead of waiting out the {@link AUTO_DISMISS_MS} auto-dismiss.
@@ -59,6 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role={t.level === "error" ? "alert" : "status"}
+            aria-live={t.level === "error" ? "assertive" : "polite"}
             aria-atomic="true"
             className={`pointer-events-auto flex items-center gap-3 rounded-md px-4 py-2 text-sm shadow-lg ${
               t.level === "error"

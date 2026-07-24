@@ -20,66 +20,8 @@ All requests go through the lightweight `fetch` wrapper in
 | Request body | `apiPost`/`apiPatch` `JSON.stringify` the supplied object | `apiClient.ts` |
 | Empty response | HTTP **204** resolves to `undefined` (no body parsed) | `apiClient.ts` |
 | Timeout | Default **10 000 ms**; on expiry the call rejects with `ApiTimeoutError` | `apiClient.ts` |
-| Success | 2xx JSON body is returned as `ApiResult<T>` with `.data` and `.rateLimit` | `apiClient.ts` |
-
-### Result envelope (`ApiResult`)
-
-Every API call returns a typed envelope that includes the response body and
-rate-limit metadata:
-
-```ts
-type ApiResult<T> = {
-  data: T;
-  rateLimit: RateLimitInfo;
-};
-
-type RateLimitInfo = {
-  remaining: number | null;     // X-RateLimit-Remaining
-  limit: number | null;         // X-RateLimit-Limit
-  resetAt: number | null;       // X-RateLimit-Reset (epoch seconds)
-  retryAfterMs: number | null;  // Retry-After (converted to ms)
-};
-```
-
-Callers that use the `useApi` hook are insulated from this — the hook unwraps
-`.data` transparently. Direct callers of `apiFetch`/`apiGet`/`apiPost` must
-destructure the result:
-
-```ts
-const { data, rateLimit } = await apiGet<Widget>("/api/v1/widgets/1");
-console.log(rateLimit.remaining); // number | null
-```
-
-### Rate-limit warnings
-
-When `rateLimit.remaining` is a positive integer ≤ `RATE_LIMIT_WARNING_THRESHOLD`
-(default: **10**), the client emits a `console.warn` message:
-
-```
-API rate-limit near exhaustion: ${remaining} calls remaining
-```
-
-No warning is emitted when `remaining` is `null`, `0`, or above the threshold.
-
-### 429 — Too Many Requests
-
-If the backend returns HTTP **429**, the call throws an `ApiRateLimitedError`:
-
-```ts
-class ApiRateLimitedError extends Error {
-  retryAfterMs: number;
-  name: "ApiRateLimitedError";
-}
-```
-
-The error message includes the retry window, e.g. `"Rate limited. Retry after 30s"`.
-The `useApi` hook detects this error and exposes:
-
-| Field | Value |
-| --- | --- |
-| `errorKind` | `"rate_limited"` |
-| `isRateLimited` | `true` |
-| `retryAfterMs` | parsed `Retry-After` value in ms (or `0`) |
+| Success | 2xx JSON body is returned as the generic `T` | `apiClient.ts` |
+| GET deduplication | `apiGet` deduplicates in-flight GET requests by resolved URL; a single network fetch serves all concurrent callers. Entries are evicted on settle (success or error) so no stale data is served. Caller abort signals are not wired to the shared request — aborting one subscriber does not cancel the fetch for others. | `apiClient.ts` |
 
 ### Timeout and Error Handling
 
@@ -101,15 +43,19 @@ type ApiError = {
 If the body is missing/!ok, the wrapper falls back to `error: "http_error"` and a
 `Request failed with status <code>` message.
 
-### `useApi` error states
+### GET request deduplication
 
-The `useApi` hook exposes three `errorKind` values:
+Concurrent `apiGet` calls to the same resolved URL share a single in-flight fetch.
+The first call triggers the network request; subsequent callers receive the same
+pending promise. Once the promise settles (fulfilled or rejected) the cache entry
+is removed so the next call always gets fresh data.
 
-| `errorKind` | Trigger | Additional fields |
-| --- | --- | --- |
-| `"generic"` | Any non-429, non-timeout error | — |
-| `"timeout"` | `ApiTimeoutError` | `isTimeout: true` |
-| `"rate_limited"` | `ApiRateLimitedError` | `isRateLimited: true`, `retryAfterMs: number \| null` |
+Caller `AbortSignal` instances are **not** forwarded to the shared underlying
+`fetch` — aborting one subscriber does not cancel the request for others,
+preventing a component unmount from disrupting another component's data.
+
+Non-idempotent methods (`POST`, `PATCH`, `DELETE`) are never deduplicated;
+`apiFetch` called directly is also unaffected.
 
 ### Pause flag
 

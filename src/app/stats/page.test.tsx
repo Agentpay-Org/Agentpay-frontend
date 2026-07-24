@@ -80,6 +80,7 @@ describe("StatsPage polling", () => {
     );
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
+    await act(async () => {});
     await act(async () => jest.advanceTimersByTime(5_000));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   });

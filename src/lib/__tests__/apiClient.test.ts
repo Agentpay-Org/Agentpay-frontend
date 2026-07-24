@@ -518,312 +518,171 @@ describe("apiClient", () => {
     expect(fetchSignal?.aborted).toBe(false);
   });
 
-  // ---------------------------------------------------------------------------
-  // Rate-limit header parsing
-  // ---------------------------------------------------------------------------
+  describe("GET request deduplication", () => {
+    it("deduplicates concurrent GET requests with the same path", async () => {
+      let resolveFetch!: (value: Response) => void;
+      const fetchMock = jest.fn(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-  it("returns rateLimit with all-null values when no rate-limit headers are present", async () => {
-    mockFetch(jest.fn(async () => mockOk({ data: 1 })));
+      const { apiGet } = await loadApiClient();
+      const promise1 = apiGet<{ ok: boolean }>("/api/v1/things");
+      const promise2 = apiGet<{ ok: boolean }>("/api/v1/things");
 
-    const result = await apiFetch("/api/v1/things");
-    expect(result.rateLimit).toEqual(emptyRateLimit);
-  });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-  it("parses X-RateLimit-Remaining, X-RateLimit-Limit, and X-RateLimit-Reset headers", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, {
-          "X-RateLimit-Remaining": "42",
-          "X-RateLimit-Limit": "100",
-          "X-RateLimit-Reset": "1700000000",
-        }),
-      ),
-    );
+      resolveFetch!(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
-    const result = await apiFetch("/api/v1/things");
-    expect(result.rateLimit).toEqual(
-      flatRateLimit({
-        remaining: 42,
-        limit: 100,
-        resetAt: 1700000000,
-      }),
-    );
-  });
-
-  it("parses Retry-After header and converts seconds to ms", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, { "Retry-After": "30" }),
-      ),
-    );
-
-    const result = await apiFetch("/api/v1/things");
-    expect(result.rateLimit).toEqual(
-      flatRateLimit({ retryAfterMs: 30000 }),
-    );
-  });
-
-  it("parses all rate-limit headers together on a 2xx response", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, {
-          "X-RateLimit-Remaining": "5",
-          "X-RateLimit-Limit": "100",
-          "X-RateLimit-Reset": "1700000000",
-          "Retry-After": "60",
-        }),
-      ),
-    );
-
-    const result = await apiFetch("/api/v1/things");
-    expect(result.rateLimit).toEqual({
-      remaining: 5,
-      limit: 100,
-      resetAt: 1700000000,
-      retryAfterMs: 60000,
+      const [r1, r2] = await Promise.all([promise1, promise2]);
+      expect(r1).toEqual({ ok: true });
+      expect(r2).toEqual({ ok: true });
     });
-  });
 
-  it("rateLimit is present on error responses (non-429)", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockResponse(
-          { error: "bad", message: "bad" },
-          400,
-          "Bad Request",
-          { "X-RateLimit-Remaining": "0" },
-        ),
-      ),
-    );
+    it("does not deduplicate requests made to different paths", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const error = (await apiGet("/api/v1/things").catch(
-      (err) => err,
-    )) as Error & Partial<ApiError>;
-    expect(error.message).toBe("bad");
-  });
+      const { apiGet } = await loadApiClient();
 
-  // ---------------------------------------------------------------------------
-  // Warning threshold
-  // ---------------------------------------------------------------------------
+      await Promise.all([
+        apiGet("/api/v1/foo"),
+        apiGet("/api/v1/bar"),
+      ]);
 
-  it("warns via console.warn when remaining <= RATE_LIMIT_WARNING_THRESHOLD and > 0", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, { "X-RateLimit-Remaining": "5" }),
-      ),
-    );
+    it("uses distinct cache keys for different query strings", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    await apiGet("/api/v1/things");
+      const { apiGet } = await loadApiClient();
 
-    expect(warn).toHaveBeenCalledWith(
-      "API rate-limit near exhaustion: 5 calls remaining",
-    );
-    warn.mockRestore();
-  });
+      await Promise.all([
+        apiGet("/api/v1/things?limit=10"),
+        apiGet("/api/v1/things?limit=20"),
+      ]);
 
-  it("warns when remaining equals the threshold", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, { "X-RateLimit-Remaining": String(RATE_LIMIT_WARNING_THRESHOLD) }),
-      ),
-    );
+    it("evicts the cache entry after the request settles so a second call re-fetches", async () => {
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    await apiGet("/api/v1/things");
+      const { apiGet } = await loadApiClient();
 
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
-  });
+      await apiGet("/api/v1/things");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-  it("does NOT warn when remaining > threshold", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      await apiGet("/api/v1/things");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, { "X-RateLimit-Remaining": "100" }),
-      ),
-    );
+    it("evicts the cache entry when the request fails", async () => {
+      const fetchMock = jest
+        .fn()
+        .mockRejectedValueOnce(new Error("Network failure"))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    await apiGet("/api/v1/things");
+      const { apiGet } = await loadApiClient();
 
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
+      await expect(apiGet("/api/v1/things")).rejects.toThrow("Network failure");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-  it("does NOT warn when remaining is 0", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      await expect(apiGet("/api/v1/things")).resolves.toEqual({ ok: true });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
-    mockFetch(
-      jest.fn(async () =>
-        mockOk({ data: 1 }, { "X-RateLimit-Remaining": "0" }),
-      ),
-    );
+    it("does not cancel the shared fetch when one subscriber aborts", async () => {
+      let resolveFetch!: (value: Response) => void;
+      const fetchMock = jest.fn(
+        () => new Promise<Response>((resolve) => { resolveFetch = resolve; }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    await apiGet("/api/v1/things");
+      const { apiGet } = await loadApiClient();
 
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
+      const controller1 = new AbortController();
+      const controller2 = new AbortController();
 
-  it("does NOT warn when remaining is null", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      const promise1 = apiGet<{ ok: boolean }>("/api/v1/things", {
+        signal: controller1.signal,
+      });
+      const promise2 = apiGet<{ ok: boolean }>("/api/v1/things", {
+        signal: controller2.signal,
+      });
 
-    mockFetch(jest.fn(async () => mockOk({ data: 1 })));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await apiGet("/api/v1/things");
+      const abortReason = new Error("Caller cancelled");
+      abortReason.name = "AbortError";
+      controller1.abort(abortReason);
 
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
+      resolveFetch!(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
-  // ---------------------------------------------------------------------------
-  // 429 handling
-  // ---------------------------------------------------------------------------
+      const [r1, r2] = await Promise.all([promise1, promise2]);
+      expect(r1).toEqual({ ok: true });
+      expect(r2).toEqual({ ok: true });
+    });
 
-  it("throws ApiRateLimitedError on 429 with Retry-After", async () => {
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    it("does not deduplicate POST, PATCH or DELETE requests", async () => {
+      const fetchMock = jest.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    mockFetch(
-      jest.fn(async () =>
-        mockResponse(null, 429, "Too Many Requests", {
-          "Retry-After": "15",
-          "X-RateLimit-Remaining": "0",
-        }),
-      ),
-    );
+      const { apiPost, apiPatch, apiDelete } = await loadApiClient();
 
-    const error = (await apiGet("/api/v1/things").catch(
-      (err) => err,
-    )) as ApiRateLimitedError;
+      await Promise.all([
+        apiPost("/api/v1/things", { name: "x" }),
+        apiPost("/api/v1/things", { name: "x" }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    expect(error).toBeInstanceOf(ApiRateLimitedError);
-    expect(error.name).toBe("ApiRateLimitedError");
-    expect(error.message).toBe("Rate limited. Retry after 15s");
-    expect(error.retryAfterMs).toBe(15000);
-    warn.mockRestore();
-  });
+      await Promise.all([
+        apiPatch("/api/v1/things/1", { name: "x" }),
+        apiPatch("/api/v1/things/1", { name: "x" }),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
 
-  it("throws ApiRateLimitedError on 429 without Retry-After (defaults to 0)", async () => {
-    mockFetch(
-      jest.fn(
-        async () =>
-          new Response(JSON.stringify({ error: "rate_limited" }), {
-            status: 429,
-            statusText: "Too Many Requests",
-            headers: { "Content-Type": "application/json" },
-          }),
-      ),
-    );
+      await Promise.all([
+        apiDelete("/api/v1/things/1"),
+        apiDelete("/api/v1/things/1"),
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+    });
 
-    const error = (await apiGet("/api/v1/things").catch(
-      (err) => err,
-    )) as ApiRateLimitedError;
+    it("respects headers passed to the deduped request", async () => {
+      const fetchMock = jest.fn(
+        async (_url: string, init?: RequestInit) => {
+          const headers = init?.headers as Record<string, string>;
+          expect(headers["Authorization"]).toBe("Bearer token-123");
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        },
+      );
+      globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    expect(error).toBeInstanceOf(ApiRateLimitedError);
-    expect(error.message).toBe("Rate limited. Retry after 0s");
-    expect(error.retryAfterMs).toBe(0);
-  });
-
-  it("429 with remaining > 0 still throws ApiRateLimitedError", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockResponse(null, 429, "Too Many Requests", {
-          "X-RateLimit-Remaining": "5",
-          "Retry-After": "10",
-        }),
-      ),
-    );
-
-    const error = (await apiGet("/api/v1/things").catch(
-      (err) => err,
-    )) as ApiRateLimitedError;
-
-    expect(error).toBeInstanceOf(ApiRateLimitedError);
-    expect(error.retryAfterMs).toBe(10000);
-  });
-
-  it("429 response body is ignored and not parsed", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockResponse("not json at all", 429, "Too Many Requests", {
-          "Retry-After": "5",
-        }),
-      ),
-    );
-
-    const error = (await apiGet("/api/v1/things").catch(
-      (err) => err,
-    )) as ApiRateLimitedError;
-
-    expect(error).toBeInstanceOf(ApiRateLimitedError);
-    expect(error.retryAfterMs).toBe(5000);
-  });
-
-  // ---------------------------------------------------------------------------
-  // Edge cases
-  // ---------------------------------------------------------------------------
-
-  it("apiPost returns data directly", async () => {
-    mockFetch(jest.fn(async () => mockOk({ id: "abc" })));
-
-    const result = await apiPost<{ id: string }>("/api/v1/things", { name: "x" });
-    expect(result).toEqual({ id: "abc" });
-  });
-
-  it("apiPatch returns data directly", async () => {
-    mockFetch(jest.fn(async () => mockOk({ updated: true })));
-
-    const result = await apiPatch("/api/v1/things/1", { name: "y" });
-    expect(result).toEqual({ updated: true });
-  });
-
-  it("apiDelete returns undefined (void)", async () => {
-    mockFetch(
-      jest.fn(async () =>
-        mockResponse(null, 204, "No Content", {
-          "X-RateLimit-Remaining": "99",
-        }),
-      ),
-    );
-
-    const result = await apiDelete("/api/v1/things/1");
-    expect(result).toBeUndefined();
-  });
-
-  it("ApiRateLimitedError is exported and is an Error subclass", () => {
-    const err = new ApiRateLimitedError(5000);
-    expect(err).toBeInstanceOf(Error);
-    expect(err.name).toBe("ApiRateLimitedError");
-    expect(err.message).toBe("Rate limited. Retry after 5s");
-    expect(err.retryAfterMs).toBe(5000);
-  });
-
-  it("RateLimitInfo type has correct shape", () => {
-    const info: RateLimitInfo = {
-      remaining: 0,
-      limit: 100,
-      resetAt: 1e9,
-      retryAfterMs: 1000,
-    };
-    expect(info.remaining).toBe(0);
-    expect(info.limit).toBe(100);
-    expect(info.resetAt).toBe(1e9);
-    expect(info.retryAfterMs).toBe(1000);
-  });
-
-  it("ApiResult type is correctly shaped", () => {
-    const result: ApiResult<string> = {
-      data: "hello",
-      rateLimit: emptyRateLimit,
-    };
-    expect(result.data).toBe("hello");
-    expect(result.rateLimit).toBe(emptyRateLimit);
-  });
-
-  it("RATE_LIMIT_WARNING_THRESHOLD is exported as a number", () => {
-    expect(RATE_LIMIT_WARNING_THRESHOLD).toBe(10);
+      const { apiGet } = await loadApiClient();
+      await apiGet("/api/v1/things", {
+        headers: { Authorization: "Bearer token-123" },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

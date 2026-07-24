@@ -15,6 +15,9 @@ export default function DocsPage() {
   const referenceLink = safeHref(
     "https://github.com/Agentpay-Org/Agentpay-frontend/blob/main/docs/api-integration.md",
   );
+  const useApiReferenceLink = safeHref(
+    "https://github.com/Agentpay-Org/Agentpay-frontend/blob/main/docs/use-api.md",
+  );
 
   return (
     <PageShell maxWidth="3xl" gap="6">
@@ -45,6 +48,22 @@ export default function DocsPage() {
           messages.docs.referenceLink
         )}
         {messages.docs.referenceSuffix}
+      </p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        For the hook contract itself, see the{" "}
+        {useApiReferenceLink.ok ? (
+          <a
+            className="underline"
+            href={useApiReferenceLink.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            useApi FetchState reference
+          </a>
+        ) : (
+          "useApi FetchState reference"
+        )}
+        .
       </p>
       <DocsFilter sections={sections} />
     </PageShell>

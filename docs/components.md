@@ -263,6 +263,27 @@ separate element.
 <StatusDot variant="warn" label="Paused" />
 ```
 
+### `ErrorMessage`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | `string` | yes | Primary error summary text. |
+| `detail` | `string \| null` | no | Secondary detail with more context about the failure. |
+| `requestId` | `string` | no | Backend request identifier shown as a monospace badge for debugging. |
+| `onRetry` | `() => void` | no | When provided, renders a "Try again" button that calls this callback. |
+
+The component is wrapped with `React.memo` so it does not re-render (and re-announce via `role="alert"`) on unrelated parent updates.
+
+```tsx
+<ErrorMessage title="Failed to load services" detail={error} />
+<ErrorMessage
+  title="Recording failed"
+  detail="Backend rejected the request."
+  requestId="req-abc-123"
+  onRetry={handleRetry}
+/>
+```
+
 ### `Spinner`
 
 | Prop | Type | Required | Notes |

@@ -1,5 +1,6 @@
 "use client";
 
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { Spinner } from "@/components/Spinner";
 import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
@@ -45,10 +46,6 @@ function describeError(error: unknown): {
         ? apiError.requestId
         : undefined,
   };
-}
-
-function formatAlert(message: string, requestId?: string): string {
-  return requestId ? `${message} (request id: ${requestId})` : message;
 }
 
 export default function UsagePage() {
@@ -202,9 +199,11 @@ export default function UsagePage() {
           </p>
         )}
         {status.kind === "error" && (
-          <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">
-            {formatAlert(status.message, status.requestId)}
-          </p>
+          <ErrorMessage
+            title="Recording failed"
+            detail={status.message}
+            requestId={status.requestId}
+          />
         )}
       </section>
 
@@ -250,9 +249,11 @@ export default function UsagePage() {
           </p>
         )}
         {queryResult.kind === "error" && (
-          <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">
-            {formatAlert(queryResult.message, queryResult.requestId)}
-          </p>
+          <ErrorMessage
+            title="Query failed"
+            detail={queryResult.message}
+            requestId={queryResult.requestId}
+          />
         )}
       </section>
     </PageShell>

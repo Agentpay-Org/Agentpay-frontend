@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertError } from "@/components/AlertError";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { PageShell } from "@/components/PageShell";
 import { TimeAgo } from "@/components/TimeAgo";
 import { usePolling } from "@/lib/usePolling";
@@ -22,7 +22,7 @@ export default function StatsPage() {
   return (
     <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
-      <AlertError message={error} />
+      <ErrorMessage title="Failed to load stats" detail={error} />
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400">
         <p>
           Last updated: {lastUpdated ? <TimeAgo ts={lastUpdated.getTime()} /> : "Never"}

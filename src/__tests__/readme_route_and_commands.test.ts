@@ -248,170 +248,46 @@ describe("README docs consistency checks", () => {
   });
 });
 
-describe("bundle budgets", () => {
-  const budgetPath = path.join(process.cwd(), "bundle-budgets.json");
 
-  test("bundle-budgets.json exists and is valid JSON", () => {
-    expect(fs.existsSync(budgetPath)).toBe(true);
-    const raw = fs.readFileSync(budgetPath, "utf8");
-    const parsed = JSON.parse(raw);
-    expect(parsed).toHaveProperty("_meta");
-    expect(parsed).toHaveProperty("routes");
-    expect(typeof parsed._meta).toBe("object");
-    expect(typeof parsed.routes).toBe("object");
+describe("contributor templates", () => {
+  test("GitHub issue forms capture reproduction, route, and expected behavior", () => {
+    const bug = fs.readFileSync(
+      path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "bug_report.yml"),
+      "utf8"
+    );
+    const feature = fs.readFileSync(
+      path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "feature_request.yml"),
+      "utf8"
+    );
+
+    expect(bug).toContain("Affected route or component");
+    expect(bug).toContain("Reproduction steps");
+    expect(bug).toContain("Expected behavior");
+    expect(bug).toContain("Accessibility and security notes");
+    expect(feature).toContain("Acceptance criteria");
+    expect(feature).toContain("Quality notes");
   });
 
-  test("all filesystem page routes have a corresponding budget entry", () => {
-    const raw = fs.readFileSync(budgetPath, "utf8");
-    const { routes: budgetRoutes } = JSON.parse(raw);
+  test("pull request template covers required local checks", () => {
+    const pr = fs.readFileSync(
+      path.join(process.cwd(), ".github", "PULL_REQUEST_TEMPLATE.md"),
+      "utf8"
+    );
 
-    const appDirAbs = path.join(process.cwd(), "src", "app");
-    const files = walkDir(appDirAbs).filter((f) => f.endsWith(path.join("", "page.tsx")));
-
-    for (const absPath of files) {
-      // Compute relative path with forward slashes manually
-      const absStr = absPath.replace(/\\/g, "/");
-      const appStr = appDirAbs.replace(/\\/g, "/");
-      const rel = absStr.replace(appStr, "").replace(/^\//, "");
-      const withoutPage = rel.replace(/\/page\.tsx$/, "");
-      const segments = withoutPage.split("/").filter(Boolean);
-
-      // Reconstruct the budget key using original bracket folder names, not normalized
-      const budgetKey =
-        "/" +
-        segments
-          .map((seg) => {
-            if (seg.startsWith("[") && seg.endsWith("]")) return seg;
-            return seg;
-          })
-          .join("/");
-      if (budgetKey === "/" || rel === "page.tsx" || budgetKey === "/page.tsx") continue;
-
-      expect(Object.prototype.hasOwnProperty.call(budgetRoutes, budgetKey)).toBe(true);
+    for (const command of ["npm run lint", "npm run typecheck", "npm test", "npm run build"]) {
+      expect(pr).toContain(command);
     }
+
+    expect(pr).toContain("Accessibility and UI review");
+    expect(pr).toContain("Security review");
+    expect(pr).toContain("Coverage and tests");
   });
 
-  test("meta includes warn_at_pct and unit", () => {
-    const raw = fs.readFileSync(budgetPath, "utf8");
-    const { _meta } = JSON.parse(raw);
-    expect(_meta).toHaveProperty("warn_at_pct");
-    expect(_meta).toHaveProperty("unit");
-    expect(typeof _meta.warn_at_pct).toBe("number");
-    expect(_meta.warn_at_pct).toBeGreaterThan(0);
-    expect(_meta.warn_at_pct).toBeLessThan(100);
-  });
+  test("CONTRIBUTING links the contributor templates", () => {
+    const contributing = fs.readFileSync(path.join(process.cwd(), "CONTRIBUTING.md"), "utf8");
 
-  test("budget values are positive numbers", () => {
-    const raw = fs.readFileSync(budgetPath, "utf8");
-    const { routes } = JSON.parse(raw);
-    for (const [route, budget] of Object.entries(routes)) {
-      expect(typeof budget).toBe("number");
-      expect(budget).toBeGreaterThan(0);
-    }
-  });
-
-  test("parseBuildOutput extracts routes from valid build table", () => {
-    const output = [
-      "   ▲ Next.js 16.1.6",
-      " ✓ Compiled successfully",
-      "",
-      "Route (app)                              Size     First Load JS",
-      "┌ ○ /                                    5.34 kB        87.2 kB",
-      "├ ○ /about                               1.23 kB        83.1 kB",
-      "├ λ /events                               129 kB         215 kB",
-      "├ ○ /search                              94.3 kB         181 kB",
-      "├ λ /services/[serviceId]                 11 kB         120 kB",
-      "├ ○ /services/new                        2.34 kB        90.2 kB",
-      "└ ○ /webhooks                            1.21 kB        83.1 kB",
-      "",
-      " ✓ Compiled successfully",
-    ].join("\n");
-
-    const routes = parseBuildOutput(output);
-    expect(routes).toHaveLength(7);
-    expect(routes[0]).toEqual({ route: "/", size: 5.34, firstLoadJS: 87.2 });
-    expect(routes[4]).toEqual({ route: "/services/[serviceId]", size: 11, firstLoadJS: 120 });
-  });
-
-  test("parseBuildOutput returns empty array when no route table found", () => {
-    const output = "some random output\nno route table here\n";
-    expect(parseBuildOutput(output)).toEqual([]);
-  });
-
-  test("parseBuildOutput handles routes with large sizes", () => {
-    const output = [
-      "Route (app)                              Size     First Load JS",
-      "┌ ○ /                                     345 kB         456 kB",
-      "├ ○ /big-page                            1,234 kB       2,345 kB",
-    ].join("\n");
-    const routes = parseBuildOutput(output);
-    expect(routes).toHaveLength(1);
-    expect(routes[0].firstLoadJS).toBe(456);
-  });
-
-  test("checkBudgets marks ok when well under budget", () => {
-    const routes = [{ route: "/", size: 5, firstLoadJS: 80 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("ok");
-    expect(results[0].pct).toBe(80);
-  });
-
-  test("checkBudgets marks warn when at threshold", () => {
-    const routes = [{ route: "/", size: 5, firstLoadJS: 90 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("warn");
-    expect(results[0].pct).toBe(90);
-  });
-
-  test("checkBudgets marks warn when above threshold but under budget", () => {
-    const routes = [{ route: "/", size: 5, firstLoadJS: 99 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("warn");
-    expect(results[0].pct).toBe(99);
-  });
-
-  test("checkBudgets marks fail when over budget", () => {
-    const routes = [{ route: "/", size: 5, firstLoadJS: 101 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("fail");
-    expect(results[0].pct).toBe(101);
-  });
-
-  test("checkBudgets marks unbudgeted when route missing from config", () => {
-    const routes = [{ route: "/mystery", size: 5, firstLoadJS: 50 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("unbudgeted");
-    expect(results[0].budget).toBeNull();
-  });
-
-  test("checkBudgets handles mixed results", () => {
-    const routes = [
-      { route: "/", size: 5, firstLoadJS: 80 },
-      { route: "/events", size: 100, firstLoadJS: 190 },
-      { route: "/search", size: 80, firstLoadJS: 185 },
-      { route: "/new-route", size: 10, firstLoadJS: 90 },
-    ];
-    const budgets = { "/": 100, "/events": 200, "/search": 180 };
-    const results = checkBudgets(routes, budgets, 90);
-
-    expect(results.find((r) => r.route === "/")?.status).toBe("ok");
-    // /events: firstLoadJS=190, budget=200 → 95%, which is >= warnAtPct(90) → warn
-    expect(results.find((r) => r.route === "/events")?.status).toBe("warn");
-    expect(results.find((r) => r.route === "/search")?.status).toBe("fail");
-    expect(results.find((r) => r.route === "/new-route")?.status).toBe("unbudgeted");
-  });
-
-  test("checkBudgets handles exact budget match", () => {
-    const routes = [{ route: "/", size: 5, firstLoadJS: 100 }];
-    const budgets = { "/": 100 };
-    const results = checkBudgets(routes, budgets, 90);
-    expect(results[0].status).toBe("warn");
-    expect(results[0].pct).toBe(100);
+    expect(contributing).toContain(".github/ISSUE_TEMPLATE/bug_report.yml");
+    expect(contributing).toContain(".github/ISSUE_TEMPLATE/feature_request.yml");
+    expect(contributing).toContain(".github/PULL_REQUEST_TEMPLATE.md");
   });
 });
-

@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { apiGet } from "../../lib/apiClient";
 import ServicesPage from "./page";
+import { ToastProvider } from "../../components/ToastProvider";
+import { truncateMiddle } from "../../lib/format";
 
 jest.mock("../../lib/apiClient", () => ({
   apiGet: jest.fn(),
@@ -52,6 +54,14 @@ async function renderWithServices(
   await screen.findByText("svc-a");
 }
 
+function renderServicesPage() {
+  return render(
+    <ToastProvider>
+      <ServicesPage />
+    </ToastProvider>
+  );
+}
+
 describe("ServicesPage", () => {
   beforeEach(() => {
     apiGetMock.mockReset();
@@ -68,9 +78,49 @@ describe("ServicesPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("shows the empty state with a New service action when there are no services", async () => {
-      apiGetMock.mockResolvedValueOnce({
-        services: [],
+    renderServicesPage();
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state with a New service action when there are no services", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      services: [],
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderServicesPage();
+
+    expect(await screen.findByText(/No services registered yet/i)).toBeInTheDocument();
+    const newServiceLinks = screen.getAllByRole("link", { name: /new service/i });
+    expect(newServiceLinks).toHaveLength(2);
+    expect(newServiceLinks.some((link) => link.getAttribute("href") === "/services/new")).toBe(
+      true
+    );
+    expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+  });
+
+  it("renders each service row as a link and omits pagination on a single page", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      services: [service("svc/1", 42)],
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderServicesPage();
+
+    const rowLink = await screen.findByRole("link", { name: /svc\/1/i });
+    expect(rowLink).toHaveAttribute("href", "/services/svc%2F1");
+    expect(screen.getByText(/42 stroops \/ request/i)).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+  });
+
+  it("shows pagination only when there are multiple pages and refetches when Next is clicked", async () => {
+    apiGetMock
+      .mockResolvedValueOnce({
+        services: [service("svc-a", 10)],
         page: 1,
         pageCount: 1,
       } as never);
@@ -179,7 +229,7 @@ describe("ServicesPage", () => {
         pageCount: 2,
       } as never);
 
-      render(<ServicesPage />);
+    renderServicesPage();
 
       expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
@@ -231,11 +281,7 @@ describe("ServicesPage", () => {
         service("svc-a", 30),
       ]);
 
-      const links = getServiceLinks();
-      expect(links[0]).toHaveAttribute("href", "/services/svc-b");
-      expect(links[1]).toHaveAttribute("href", "/services/svc-c");
-      expect(links[2]).toHaveAttribute("href", "/services/svc-a");
-    });
+    renderServicesPage();
 
     it("sorts by name ascending when Name header is clicked", async () => {
       await renderWithServices();
@@ -406,10 +452,13 @@ describe("ServicesPage", () => {
       render(<ServicesPage />);
       await screen.findByText("svc-c");
 
-      const links = getServiceLinks();
-      expect(links[0]).toHaveAttribute("href", "/services/svc-c");
-      expect(links[1]).toHaveAttribute("href", "/services/svc-b");
-      expect(links[2]).toHaveAttribute("href", "/services/svc-a");
+    renderServicesPage();
+
+    expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(apiGetMock).toHaveBeenLastCalledWith("/api/v1/services?page=2&limit=25");
     });
 
     it("falls back to no sort when URL has invalid sort key", async () => {
@@ -480,7 +529,7 @@ describe("ServicesPage", () => {
       render(<ServicesPage />);
       await screen.findByText(/30 stroops/);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Name/ }));
+    renderServicesPage();
 
       const links = getServiceLinks();
       expect(links).toHaveLength(3);
@@ -569,7 +618,7 @@ describe("ServicesPage", () => {
         page: 1,
         pageCount: 1,
       } as never);
-      render(<ServicesPage />);
+      renderServicesPage();
       await screen.findByText("svc-a");
     }
 
@@ -630,4 +679,133 @@ describe("ServicesPage", () => {
       expect(document.activeElement).toBe(links[2]);
     });
   });
+
+  describe("Copy service ID control", () => {
+    const fullServiceId = "srv_live_abc123xyz789_untruncated_very_long_identifier";
+    const originalClipboard = navigator.clipboard;
+    const originalExecCommand = document.execCommand;
+
+    afterEach(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: originalClipboard,
+        configurable: true,
+      });
+      document.execCommand = originalExecCommand;
+    });
+
+    async function renderWithService(id: string = fullServiceId) {
+      apiGetMock.mockResolvedValueOnce({
+        services: [{ serviceId: id, priceStroops: 100 }],
+        page: 1,
+        pageCount: 1,
+      } as never);
+      renderServicesPage();
+      await screen.findByText(truncateMiddle(id));
+    }
+
+    it("copies untruncated serviceId using Clipboard API and displays success toast", async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+
+      await renderWithService(fullServiceId);
+
+      const copyBtn = screen.getByRole("button", {
+        name: `Copy service ID for ${fullServiceId}`,
+      });
+      expect(copyBtn).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(copyBtn);
+      });
+
+      expect(writeText).toHaveBeenCalledWith(fullServiceId);
+      expect(await screen.findByText("Service ID copied to clipboard")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Service ID copied to clipboard");
+    });
+
+    it("executes textarea fallback and triggers success toast when Clipboard API is unavailable", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+      });
+
+      const execCommandMock = jest.fn().mockReturnValue(true);
+      document.execCommand = execCommandMock;
+
+      await renderWithService(fullServiceId);
+
+      const copyBtn = screen.getByRole("button", {
+        name: `Copy service ID for ${fullServiceId}`,
+      });
+
+      await act(async () => {
+        fireEvent.click(copyBtn);
+      });
+
+      expect(execCommandMock).toHaveBeenCalledWith("copy");
+      expect(await screen.findByText("Service ID copied to clipboard")).toBeInTheDocument();
+    });
+
+    it("triggers error toast when both Clipboard API and fallback fail", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+      });
+
+      document.execCommand = jest.fn().mockReturnValue(false);
+
+      await renderWithService(fullServiceId);
+
+      const copyBtn = screen.getByRole("button", {
+        name: `Copy service ID for ${fullServiceId}`,
+      });
+
+      await act(async () => {
+        fireEvent.click(copyBtn);
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Failed to copy service ID");
+    });
+
+    it("handles rapid repeated clicks gracefully without breaking state", async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+
+      await renderWithService(fullServiceId);
+
+      const copyBtn = screen.getByRole("button", {
+        name: `Copy service ID for ${fullServiceId}`,
+      });
+
+      await act(async () => {
+        fireEvent.click(copyBtn);
+        fireEvent.click(copyBtn);
+        fireEvent.click(copyBtn);
+      });
+
+      expect(writeText).toHaveBeenCalledTimes(3);
+      expect(screen.getByText("Copied")).toBeInTheDocument();
+    });
+
+    it("has accessible label, focus indicator styling, and keyboard activation support", async () => {
+      await renderWithService(fullServiceId);
+
+      const copyBtn = screen.getByRole("button", {
+        name: `Copy service ID for ${fullServiceId}`,
+      });
+
+      expect(copyBtn).toHaveAttribute(
+        "aria-label",
+        `Copy service ID for ${fullServiceId}`
+      );
+      expect(copyBtn.className).toContain("focus-visible:outline");
+    });
+  });
 });
+

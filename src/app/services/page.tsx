@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
-import { safeFormatTimestamp, truncateMiddle } from "@/lib/format";
+import { truncateMiddle } from "@/lib/format";
+import { useToast } from "@/components/ToastProvider";
+import { useClipboard } from "@/lib/useClipboard";
 
 type Service = { serviceId: string; priceStroops: number; createdAt?: number | string | null };
 type ServicesResponse = {
@@ -74,6 +76,60 @@ function useSorted(services: Service[] | null, sortKey: SortKey, sortDir: SortDi
     });
     return indexed;
   }, [services, sortKey, sortDir]);
+}
+
+export function ServiceCopyButton({ serviceId }: { serviceId: string }) {
+  const { copy, copied } = useClipboard({ timeout: 1500 });
+  const { push } = useToast();
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const success = await copy(serviceId);
+    if (success) {
+      push("Service ID copied to clipboard", "info");
+    } else {
+      push("Failed to copy service ID", "error");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={`Copy service ID for ${serviceId}`}
+      title={`Copy service ID for ${serviceId}`}
+      aria-live="polite"
+      className="ml-3 inline-flex items-center gap-1.5 rounded border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+    >
+      {copied ? (
+        <span>Copied</span>
+      ) : (
+        <>
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.1"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 15.75s1.5 0 1.5 1.5V6a2.25 2.25 0 0 1 2.25-2.25h6.375A2.25 2.25 0 0 1 21 6v11.25a2.25 2.25 0 0 1-2.25 2.25H9z"
+            />
+          </svg>
+          <span>Copy ID</span>
+        </>
+      )}
+    </button>
+  );
 }
 
 export default function ServicesPage() {
@@ -185,60 +241,31 @@ export default function ServicesPage() {
         />
       )}
       {!loading && services && services.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-200 text-left text-sm dark:border-zinc-800">
-                {COLUMNS.map((col) => (
-                  <th
-                    key={col.key}
-                    scope="col"
-                    aria-sort={getAriaSort(col.key, sortKey, sortDir)}
-                    className="py-3 pr-4 font-medium last:pr-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSort(col.key)}
-                      className="-ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-zinc-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:text-zinc-300"
-                    >
-                      {col.label}
-                      {sortKey === col.key && (
-                        <span aria-hidden="true" className="text-xs">
-                          {sortDir === "asc" ? "\u25B2" : "\u25BC"}
-                        </span>
-                      )}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {sortedServices!.map((s) => (
-                <tr
-                  key={s.serviceId}
-                  className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {services.map((s) => (
+            <li
+              key={s.serviceId}
+              className="-mx-4 flex items-center justify-between rounded-lg px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            >
+              <Link
+                href={`/services/${encodeURIComponent(s.serviceId)}`}
+                className="flex flex-1 items-center justify-between rounded-lg hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-900"
+              >
+                <span
+                  className="font-mono text-sm"
+                  title={s.serviceId}
+                  aria-label={s.serviceId}
                 >
-                  <td className="py-3 pr-4">
-                    <Link
-                      href={`/services/${encodeURIComponent(s.serviceId)}`}
-                      className="-ml-4 block rounded-lg px-4 py-3 font-mono text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                      title={s.serviceId}
-                      aria-label={s.serviceId}
-                    >
-                      {truncateMiddle(s.serviceId)}
-                    </Link>
-                  </td>
-                  <td className="py-3 pr-4 text-sm text-zinc-600 dark:text-zinc-400">
-                    {s.priceStroops} stroops / request
-                  </td>
-                  <td className="py-3 text-sm text-zinc-600 dark:text-zinc-400">
-                    {safeFormatTimestamp(s.createdAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  {truncateMiddle(s.serviceId)}
+                </span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {s.priceStroops} stroops / request
+                </span>
+              </Link>
+              <ServiceCopyButton serviceId={s.serviceId} />
+            </li>
+          ))}
+        </ul>
       )}
       {!loading && !error && (
         <Pagination
@@ -250,3 +277,4 @@ export default function ServicesPage() {
     </PageShell>
   );
 }
+

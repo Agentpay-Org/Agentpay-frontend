@@ -1,6 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { apiGet, ApiTimeoutError } from "../apiClient";
+import {
+  type ApiResult,
+  ApiRateLimitedError,
+  ApiTimeoutError,
+  apiGet,
+} from "../apiClient";
 import { useApi } from "../useApi";
 
 jest.mock("../apiClient", () => {
@@ -14,6 +19,13 @@ jest.mock("../apiClient", () => {
 type Payload = { label: string };
 
 const apiGetMock = jest.mocked(apiGet<Payload>);
+
+function wrap<T>(data: T): ApiResult<T> {
+  return {
+    data,
+    rateLimit: { remaining: null, limit: null, resetAt: null, retryAfterMs: null },
+  };
+}
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -48,6 +60,8 @@ function DetailedProbe({ path }: { path: string | null }) {
         <output data-testid="error-message">{state.error}</output>
         <output data-testid="error-kind">{state.errorKind}</output>
         <output data-testid="is-timeout">{String(state.isTimeout)}</output>
+        <output data-testid="is-rate-limited">{String("isRateLimited" in state ? state.isRateLimited : false)}</output>
+        <output data-testid="retry-after-ms">{String("retryAfterMs" in state ? state.retryAfterMs ?? "" : "")}</output>
         <button data-testid="retry-btn" onClick={state.retry}>
           Retry
         </button>
@@ -68,7 +82,7 @@ describe("useApi", () => {
   });
 
   it("starts in loading state and transitions to ok with fetched data", async () => {
-    const request = createDeferred<Payload>();
+    const request = createDeferred<ApiResult<Payload>>();
     apiGetMock.mockReturnValueOnce(request.promise);
 
     render(<Probe path="/api/v1/events" />);
@@ -80,7 +94,7 @@ describe("useApi", () => {
     );
 
     await act(async () => {
-      request.resolve({ label: "events loaded" });
+      request.resolve(wrap({ label: "events loaded" }));
       await request.promise;
     });
 
@@ -98,6 +112,7 @@ describe("useApi", () => {
       );
       expect(screen.getByTestId("error-kind")).toHaveTextContent("generic");
       expect(screen.getByTestId("is-timeout")).toHaveTextContent("false");
+      expect(screen.getByTestId("is-rate-limited")).toHaveTextContent("false");
     });
   });
 
@@ -112,6 +127,7 @@ describe("useApi", () => {
       );
       expect(screen.getByTestId("error-kind")).toHaveTextContent("timeout");
       expect(screen.getByTestId("is-timeout")).toHaveTextContent("true");
+      expect(screen.getByTestId("is-rate-limited")).toHaveTextContent("false");
     });
   });
 
@@ -139,7 +155,7 @@ describe("useApi", () => {
       expect(screen.getByTestId("error-kind")).toHaveTextContent("timeout");
     });
 
-    const secondRequest = createDeferred<Payload>();
+    const secondRequest = createDeferred<ApiResult<Payload>>();
     apiGetMock.mockReturnValueOnce(secondRequest.promise);
 
     act(() => {
@@ -149,7 +165,7 @@ describe("useApi", () => {
     expect(screen.getByTestId("state")).toHaveTextContent("loading");
 
     await act(async () => {
-      secondRequest.resolve({ label: "retried success" });
+      secondRequest.resolve(wrap({ label: "retried success" }));
       await secondRequest.promise;
     });
 
@@ -206,8 +222,8 @@ describe("useApi", () => {
   });
 
   it("refetches when the path changes and ignores stale responses", async () => {
-    const first = createDeferred<Payload>();
-    const second = createDeferred<Payload>();
+    const first = createDeferred<ApiResult<Payload>>();
+    const second = createDeferred<ApiResult<Payload>>();
     let firstSignal: AbortSignal | undefined;
 
     apiGetMock
@@ -230,14 +246,14 @@ describe("useApi", () => {
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {
-      first.resolve({ label: "stale first" });
+      first.resolve(wrap({ label: "stale first" }));
       await first.promise;
     });
 
     expect(screen.getByTestId("state")).toHaveTextContent("loading");
 
     await act(async () => {
-      second.resolve({ label: "fresh second" });
+      second.resolve(wrap({ label: "fresh second" }));
       await second.promise;
     });
 
@@ -245,7 +261,7 @@ describe("useApi", () => {
   });
 
   it("aborts in-flight requests on unmount without updating state", async () => {
-    const request = createDeferred<Payload>();
+    const request = createDeferred<ApiResult<Payload>>();
     let signal: AbortSignal | undefined;
     const consoleError = jest
       .spyOn(console, "error")
@@ -263,11 +279,43 @@ describe("useApi", () => {
     expect(signal?.aborted).toBe(true);
 
     await act(async () => {
-      request.resolve({ label: "late response" });
+      request.resolve(wrap({ label: "late response" }));
       await request.promise;
     });
 
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Rate-limit error tests
+  // ---------------------------------------------------------------------------
+
+  it("detects ApiRateLimitedError and exposes rate_limited errorKind, isRateLimited, retryAfterMs", async () => {
+    apiGetMock.mockRejectedValueOnce(new ApiRateLimitedError(30000));
+
+    render(<DetailedProbe path="/api/v1/events" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-message")).toHaveTextContent(
+        "Rate limited. Retry after 30s",
+      );
+      expect(screen.getByTestId("error-kind")).toHaveTextContent("rate_limited");
+      expect(screen.getByTestId("is-timeout")).toHaveTextContent("false");
+      expect(screen.getByTestId("is-rate-limited")).toHaveTextContent("true");
+      expect(screen.getByTestId("retry-after-ms")).toHaveTextContent("30000");
+    });
+  });
+
+  it("detects errors with name ApiRateLimitedError and exposes rate_limited errorKind", async () => {
+    const err = new Error("custom rate limit");
+    err.name = "ApiRateLimitedError";
+    apiGetMock.mockRejectedValueOnce(err);
+
+    render(<DetailedProbe path="/api/v1/events" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-kind")).toHaveTextContent("rate_limited");
+    });
   });
 });

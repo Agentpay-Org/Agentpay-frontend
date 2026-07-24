@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useReducer } from "react";
-import { apiGet, ApiTimeoutError } from "./apiClient";
+import { apiGet, ApiRateLimitedError, ApiTimeoutError } from "./apiClient";
 
-export type ApiErrorKind = "timeout" | "generic";
+export type ApiErrorKind = "timeout" | "rate_limited" | "generic";
 
 export type ApiErrorState = {
   status: "error";
   error: string;
   errorKind: ApiErrorKind;
   isTimeout: boolean;
+  isRateLimited: boolean;
+  retryAfterMs: number | null;
   retry: () => void;
 };
 
@@ -55,22 +57,37 @@ export function useApi<T>(path: string | null): State<T> {
     let cancelled = false;
     dispatch({ status: "loading" });
     apiGet<T>(path, { signal: controller.signal })
-      .then((data) => !cancelled && dispatch({ status: "ok", data }))
+      .then((result) => !cancelled && dispatch({ status: "ok", data: result.data }))
       .catch((e) => {
         if (cancelled) return;
         const isTimeout =
           e instanceof ApiTimeoutError ||
           (e instanceof Error && e.name === "ApiTimeoutError");
-        const errorKind: ApiErrorKind = isTimeout ? "timeout" : "generic";
+        const isRateLimited =
+          e instanceof ApiRateLimitedError ||
+          (e instanceof Error && e.name === "ApiRateLimitedError");
+        const retryAfterMs =
+          isRateLimited && e instanceof ApiRateLimitedError
+            ? e.retryAfterMs
+            : null;
+        const errorKind: ApiErrorKind = isTimeout
+          ? "timeout"
+          : isRateLimited
+            ? "rate_limited"
+            : "generic";
         const errorMsg = isTimeout
           ? "Request timed out. Please try again."
-          : (e as Error).message ?? "failed to load";
+          : isRateLimited
+            ? (e as Error).message ?? "Rate limited"
+            : (e as Error).message ?? "failed to load";
 
         dispatch({
           status: "error",
           error: errorMsg,
           errorKind,
           isTimeout,
+          isRateLimited,
+          retryAfterMs,
           retry,
         });
       });

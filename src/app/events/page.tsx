@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertError } from "@/components/AlertError";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
 import { SearchBar } from "@/components/SearchBar";
@@ -268,7 +268,7 @@ export default function EventsPage() {
         </p>
       </div>
 
-      <AlertError message={error} />
+      <ErrorMessage title="Failed to load events" detail={error} />
 
       {loading && !error && (
         <div role="status" aria-busy="true" className="flex justify-center py-10">

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
-import { AlertError } from "@/components/AlertError";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/Badge";
 import { CopyButton } from "@/components/CopyButton";
 import { KeyValueGrid } from "@/components/KeyValueGrid";
@@ -45,7 +45,7 @@ export default function ServiceDetailPage({
       <h1 className="text-3xl font-semibold tracking-tight font-mono">
         {serviceId}
       </h1>
-      <AlertError message={error} />
+      <ErrorMessage title="Failed to load service" detail={error} />
       {service && (
         <div className="rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
           <KeyValueGrid

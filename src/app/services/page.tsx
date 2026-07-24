@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
-import { AlertError } from "@/components/AlertError";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
 import { Pagination } from "@/components/Pagination";
@@ -82,7 +82,7 @@ export default function ServicesPage() {
           New service
         </Link>
       </header>
-      <AlertError message={error} />
+      <ErrorMessage title="Failed to load services" detail={error} />
       {loading && (
         <div className="flex justify-center py-10">
           <Spinner label="Loading services" />

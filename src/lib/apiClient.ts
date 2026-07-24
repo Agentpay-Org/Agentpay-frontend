@@ -223,7 +223,7 @@ export function apiGet<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
   const url = resolveUrl(path);
   const existing = pendingGets.get(url);
   if (existing) {
-    return existing as Promise<T>;
+    return (existing as Promise<ApiResult<T>>).then((r) => r.data);
   }
   const { signal: callerSignal, ...sharedInit } = init;
   void callerSignal;
@@ -233,7 +233,7 @@ export function apiGet<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
     }
   });
   pendingGets.set(url, promise);
-  return promise;
+  return promise.then((r) => r.data);
 }
 
 export function apiPost<T>(

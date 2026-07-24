@@ -15,6 +15,9 @@ import {
   RATE_LIMIT_WARNING_THRESHOLD,
   apiFetch,
   apiGet,
+  apiPost,
+  apiPatch,
+  apiDelete,
 } from "../apiClient";
 
 type ApiClientModule = typeof import("../apiClient");
@@ -74,15 +77,33 @@ function mockResponse(
   statusText = "",
   rateLimitHeaders: Record<string, string> = {},
 ): Response {
-  const headers = new Headers({
+  const hdrs: Record<string, string> = {
     "Content-Type": "application/json",
     ...rateLimitHeaders,
-  });
-  return new Response(body != null ? JSON.stringify(body) : null, {
+  };
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(hdrs)) {
+    headers.set(k, v);
+  }
+  return {
+    ok: status >= 200 && status < 300,
     status,
     statusText,
     headers,
-  });
+    json: async () => (body != null ? body : undefined),
+    redirected: false,
+    type: "default" as const,
+    url: "",
+    clone: () => {
+      throw new Error("not implemented");
+    },
+    body: null,
+    bodyUsed: false,
+    arrayBuffer: async () => { throw new Error("not implemented"); },
+    blob: async () => { throw new Error("not implemented"); },
+    formData: async () => { throw new Error("not implemented"); },
+    text: async () => JSON.stringify(body),
+  } as Response;
 }
 
 function mockOk(body: unknown, rateLimitHeaders: Record<string, string> = {}) {
@@ -120,10 +141,8 @@ describe("apiClient", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiGet } = await loadApiClient();
     const result = await apiGet<{ ok: boolean }>("/api/v1/things");
-    expect(result.data).toEqual({ ok: true });
-    expect(result.rateLimit).toEqual(emptyRateLimit);
+    expect(result).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -134,11 +153,11 @@ describe("apiClient", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiGet } = await loadApiClient({
+    const { apiGet: altApiGet } = await loadApiClient({
       NEXT_PUBLIC_AGENTPAY_API_BASE: "https://api.example.com/v1/",
     });
-    const result = await apiGet<{ ok: boolean }>("/health");
-    expect(result.data).toEqual({ ok: true });
+    const result = await altApiGet<{ ok: boolean }>("/health");
+    expect(result).toEqual({ ok: true });
   });
 
   it("sends POST bodies as JSON strings", async () => {
@@ -149,11 +168,10 @@ describe("apiClient", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiPost } = await loadApiClient();
     const result = await apiPost<{ created: boolean }>("/api/v1/things", {
       hello: "world",
     });
-    expect(result.data).toEqual({ created: true });
+    expect(result).toEqual({ created: true });
   });
 
   it("sends PATCH bodies as JSON strings", async () => {
@@ -164,12 +182,11 @@ describe("apiClient", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiPatch } = await loadApiClient();
     const result = await apiPatch<{ updated: boolean }>(
       "/api/v1/things/1",
       { enabled: true },
     );
-    expect(result.data).toEqual({ updated: true });
+    expect(result).toEqual({ updated: true });
   });
 
   it("merges caller headers while allowing Content-Type overrides", async () => {
@@ -182,7 +199,6 @@ describe("apiClient", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiFetch } = await loadApiClient();
     const result = await apiFetch("/api/v1/custom", {
       headers: {
         "Content-Type": "text/plain",
@@ -193,17 +209,15 @@ describe("apiClient", () => {
     expect(result.data).toEqual({ ok: true });
   });
 
-  it("returns { data: undefined, rateLimit } for DELETE 204 responses", async () => {
+  it("returns undefined for DELETE 204 responses", async () => {
     const fetchMock = jest.fn(async (_url, init) => {
       expect(init?.method).toBe("DELETE");
       return new Response(null, { status: 204 });
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiDelete } = await loadApiClient();
     const result = await apiDelete("/api/v1/things/1");
-    expect(result.data).toBeUndefined();
-    expect(result.rateLimit).toEqual(emptyRateLimit);
+    expect(result).toBeUndefined();
   });
 
   it("unwraps ApiError fields onto the thrown Error instance", async () => {
@@ -221,7 +235,6 @@ describe("apiClient", () => {
     );
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
@@ -244,7 +257,6 @@ describe("apiClient", () => {
     );
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
@@ -266,9 +278,8 @@ describe("apiClient", () => {
       })) as unknown as typeof globalThis.fetch,
     );
 
-    const { apiGet } = await loadApiClient();
     const result = await apiGet("/api/v1/things/1");
-    expect(result.data).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 
   it("reports malformed JSON on a successful response", async () => {
@@ -284,7 +295,6 @@ describe("apiClient", () => {
       })) as unknown as typeof globalThis.fetch,
     );
 
-    const { apiGet } = await loadApiClient();
     await expect(apiGet("/api/v1/things/1")).rejects.toThrow(
       "Response body was not valid JSON",
     );
@@ -303,7 +313,6 @@ describe("apiClient", () => {
       })) as unknown as typeof globalThis.fetch,
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
@@ -325,7 +334,6 @@ describe("apiClient", () => {
       })) as unknown as typeof globalThis.fetch,
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
@@ -347,7 +355,6 @@ describe("apiClient", () => {
       })) as unknown as typeof globalThis.fetch,
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things/1").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
@@ -364,7 +371,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     await expect(apiGet("/api/v1/x")).rejects.toMatchObject({
       message: "Request failed",
       error: "http_error",
@@ -519,8 +525,7 @@ describe("apiClient", () => {
   it("returns rateLimit with all-null values when no rate-limit headers are present", async () => {
     mockFetch(jest.fn(async () => mockOk({ data: 1 })));
 
-    const { apiGet } = await loadApiClient();
-    const result = await apiGet("/api/v1/things");
+    const result = await apiFetch("/api/v1/things");
     expect(result.rateLimit).toEqual(emptyRateLimit);
   });
 
@@ -535,8 +540,7 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
-    const result = await apiGet("/api/v1/things");
+    const result = await apiFetch("/api/v1/things");
     expect(result.rateLimit).toEqual(
       flatRateLimit({
         remaining: 42,
@@ -553,8 +557,7 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
-    const result = await apiGet("/api/v1/things");
+    const result = await apiFetch("/api/v1/things");
     expect(result.rateLimit).toEqual(
       flatRateLimit({ retryAfterMs: 30000 }),
     );
@@ -572,8 +575,7 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
-    const result = await apiGet("/api/v1/things");
+    const result = await apiFetch("/api/v1/things");
     expect(result.rateLimit).toEqual({
       remaining: 5,
       limit: 100,
@@ -594,15 +596,10 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things").catch(
       (err) => err,
     )) as Error & Partial<ApiError>;
     expect(error.message).toBe("bad");
-
-    // Rate-limit info is lost with non-429 errors because we throw before
-    // returning it.  This is acceptable — the error object carries the info
-    // needed for 429s specifically.
   });
 
   // ---------------------------------------------------------------------------
@@ -618,7 +615,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     await apiGet("/api/v1/things");
 
     expect(warn).toHaveBeenCalledWith(
@@ -636,7 +632,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     await apiGet("/api/v1/things");
 
     expect(warn).toHaveBeenCalled();
@@ -652,7 +647,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     await apiGet("/api/v1/things");
 
     expect(warn).not.toHaveBeenCalled();
@@ -668,7 +662,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     await apiGet("/api/v1/things");
 
     expect(warn).not.toHaveBeenCalled();
@@ -680,7 +673,6 @@ describe("apiClient", () => {
 
     mockFetch(jest.fn(async () => mockOk({ data: 1 })));
 
-    const { apiGet } = await loadApiClient();
     await apiGet("/api/v1/things");
 
     expect(warn).not.toHaveBeenCalled();
@@ -703,7 +695,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things").catch(
       (err) => err,
     )) as ApiRateLimitedError;
@@ -727,7 +718,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things").catch(
       (err) => err,
     )) as ApiRateLimitedError;
@@ -747,7 +737,6 @@ describe("apiClient", () => {
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things").catch(
       (err) => err,
     )) as ApiRateLimitedError;
@@ -759,15 +748,12 @@ describe("apiClient", () => {
   it("429 response body is ignored and not parsed", async () => {
     mockFetch(
       jest.fn(async () =>
-        new Response("not json at all", {
-          status: 429,
-          statusText: "Too Many Requests",
-          headers: { "Retry-After": "5" },
+        mockResponse("not json at all", 429, "Too Many Requests", {
+          "Retry-After": "5",
         }),
       ),
     );
 
-    const { apiGet } = await loadApiClient();
     const error = (await apiGet("/api/v1/things").catch(
       (err) => err,
     )) as ApiRateLimitedError;
@@ -780,38 +766,31 @@ describe("apiClient", () => {
   // Edge cases
   // ---------------------------------------------------------------------------
 
-  it("apiPost returns ApiResult correctly", async () => {
+  it("apiPost returns data directly", async () => {
     mockFetch(jest.fn(async () => mockOk({ id: "abc" })));
 
-    const { apiPost } = await loadApiClient();
     const result = await apiPost<{ id: string }>("/api/v1/things", { name: "x" });
-    expect(result.data).toEqual({ id: "abc" });
-    expect(result.rateLimit).toEqual(emptyRateLimit);
+    expect(result).toEqual({ id: "abc" });
   });
 
-  it("apiPatch returns ApiResult correctly", async () => {
+  it("apiPatch returns data directly", async () => {
     mockFetch(jest.fn(async () => mockOk({ updated: true })));
 
-    const { apiPatch } = await loadApiClient();
     const result = await apiPatch("/api/v1/things/1", { name: "y" });
-    expect(result.data).toEqual({ updated: true });
+    expect(result).toEqual({ updated: true });
   });
 
-  it("apiDelete returns ApiResult<void> correctly with rateLimit", async () => {
+  it("apiDelete returns undefined (void)", async () => {
     mockFetch(
-      jest.fn(
-        async () =>
-          new Response(null, {
-            status: 204,
-            headers: { "X-RateLimit-Remaining": "99" },
-          }),
+      jest.fn(async () =>
+        mockResponse(null, 204, "No Content", {
+          "X-RateLimit-Remaining": "99",
+        }),
       ),
     );
 
-    const { apiDelete } = await loadApiClient();
     const result = await apiDelete("/api/v1/things/1");
-    expect(result.data).toBeUndefined();
-    expect(result.rateLimit).toEqual(flatRateLimit({ remaining: 99 }));
+    expect(result).toBeUndefined();
   });
 
   it("ApiRateLimitedError is exported and is an Error subclass", () => {

@@ -57,7 +57,7 @@ export function useApi<T>(path: string | null): State<T> {
     let cancelled = false;
     dispatch({ status: "loading" });
     apiGet<T>(path, { signal: controller.signal })
-      .then((result) => !cancelled && dispatch({ status: "ok", data: result.data }))
+      .then((data) => !cancelled && dispatch({ status: "ok", data }))
       .catch((e) => {
         if (cancelled) return;
         const isTimeout =

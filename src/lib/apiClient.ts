@@ -64,17 +64,17 @@ async function readJson(res: Response): Promise<unknown> {
   return parsed === null ? undefined : parsed;
 }
 
-function parseRateLimit(headers: Headers): RateLimitInfo {
-  const rawRemaining = headers.get("X-RateLimit-Remaining");
-  const rawLimit = headers.get("X-RateLimit-Limit");
-  const rawReset = headers.get("X-RateLimit-Reset");
-  const rawRetryAfter = headers.get("Retry-After");
+function parseRateLimit(headers: Headers | undefined): RateLimitInfo {
+  const rawRemaining = headers?.get("X-RateLimit-Remaining");
+  const rawLimit = headers?.get("X-RateLimit-Limit");
+  const rawReset = headers?.get("X-RateLimit-Reset");
+  const rawRetryAfter = headers?.get("Retry-After");
 
-  const remaining = rawRemaining !== null ? Number(rawRemaining) : null;
-  const limit = rawLimit !== null ? Number(rawLimit) : null;
-  const resetAt = rawReset !== null ? Number(rawReset) : null;
+  const remaining = rawRemaining != null ? Number(rawRemaining) : null;
+  const limit = rawLimit != null ? Number(rawLimit) : null;
+  const resetAt = rawReset != null ? Number(rawReset) : null;
   const retryAfterMs =
-    rawRetryAfter !== null ? Number(rawRetryAfter) * 1000 : null;
+    rawRetryAfter != null ? Number(rawRetryAfter) * 1000 : null;
 
   return { remaining, limit, resetAt, retryAfterMs };
 }
@@ -214,7 +214,7 @@ export async function apiFetch<T>(
 }
 
 export function apiGet<T>(path: string, init: ApiFetchInit = {}) {
-  return apiFetch<T>(path, init);
+  return apiFetch<T>(path, init).then((r) => r.data);
 }
 
 export function apiPost<T>(
@@ -222,13 +222,13 @@ export function apiPost<T>(
   body: unknown,
   init: ApiFetchInit = {},
 ) {
-  return apiFetch<T>(path, { ...init, method: "POST", body: JSON.stringify(body) });
+  return apiFetch<T>(path, { ...init, method: "POST", body: JSON.stringify(body) }).then((r) => r.data);
 }
 export const apiPatch = <T>(
   path: string,
   body: unknown,
   init: ApiFetchInit = {},
 ) =>
-  apiFetch<T>(path, { ...init, method: "PATCH", body: JSON.stringify(body) });
+  apiFetch<T>(path, { ...init, method: "PATCH", body: JSON.stringify(body) }).then((r) => r.data);
 export const apiDelete = (path: string, init: ApiFetchInit = {}) =>
-  apiFetch<void>(path, { ...init, method: "DELETE" });
+  apiFetch<void>(path, { ...init, method: "DELETE" }).then((r) => r.data);

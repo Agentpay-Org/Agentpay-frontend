@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import {
-  type ApiResult,
   ApiRateLimitedError,
   ApiTimeoutError,
   apiGet,
@@ -19,13 +18,6 @@ jest.mock("../apiClient", () => {
 type Payload = { label: string };
 
 const apiGetMock = jest.mocked(apiGet<Payload>);
-
-function wrap<T>(data: T): ApiResult<T> {
-  return {
-    data,
-    rateLimit: { remaining: null, limit: null, resetAt: null, retryAfterMs: null },
-  };
-}
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -82,7 +74,7 @@ describe("useApi", () => {
   });
 
   it("starts in loading state and transitions to ok with fetched data", async () => {
-    const request = createDeferred<ApiResult<Payload>>();
+    const request = createDeferred<Payload>();
     apiGetMock.mockReturnValueOnce(request.promise);
 
     render(<Probe path="/api/v1/events" />);
@@ -94,7 +86,7 @@ describe("useApi", () => {
     );
 
     await act(async () => {
-      request.resolve(wrap({ label: "events loaded" }));
+      request.resolve({ label: "events loaded" });
       await request.promise;
     });
 
@@ -155,7 +147,7 @@ describe("useApi", () => {
       expect(screen.getByTestId("error-kind")).toHaveTextContent("timeout");
     });
 
-    const secondRequest = createDeferred<ApiResult<Payload>>();
+    const secondRequest = createDeferred<Payload>();
     apiGetMock.mockReturnValueOnce(secondRequest.promise);
 
     act(() => {
@@ -165,7 +157,7 @@ describe("useApi", () => {
     expect(screen.getByTestId("state")).toHaveTextContent("loading");
 
     await act(async () => {
-      secondRequest.resolve(wrap({ label: "retried success" }));
+      secondRequest.resolve({ label: "retried success" });
       await secondRequest.promise;
     });
 
@@ -222,8 +214,8 @@ describe("useApi", () => {
   });
 
   it("refetches when the path changes and ignores stale responses", async () => {
-    const first = createDeferred<ApiResult<Payload>>();
-    const second = createDeferred<ApiResult<Payload>>();
+    const first = createDeferred<Payload>();
+    const second = createDeferred<Payload>();
     let firstSignal: AbortSignal | undefined;
 
     apiGetMock
@@ -246,14 +238,14 @@ describe("useApi", () => {
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {
-      first.resolve(wrap({ label: "stale first" }));
+      first.resolve({ label: "stale first" });
       await first.promise;
     });
 
     expect(screen.getByTestId("state")).toHaveTextContent("loading");
 
     await act(async () => {
-      second.resolve(wrap({ label: "fresh second" }));
+      second.resolve({ label: "fresh second" });
       await second.promise;
     });
 
@@ -261,7 +253,7 @@ describe("useApi", () => {
   });
 
   it("aborts in-flight requests on unmount without updating state", async () => {
-    const request = createDeferred<ApiResult<Payload>>();
+    const request = createDeferred<Payload>();
     let signal: AbortSignal | undefined;
     const consoleError = jest
       .spyOn(console, "error")
@@ -279,7 +271,7 @@ describe("useApi", () => {
     expect(signal?.aborted).toBe(true);
 
     await act(async () => {
-      request.resolve(wrap({ label: "late response" }));
+      request.resolve({ label: "late response" });
       await request.promise;
     });
 

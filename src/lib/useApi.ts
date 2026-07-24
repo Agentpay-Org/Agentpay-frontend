@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { apiGet, ApiTimeoutError } from "./apiClient";
 
 export type ApiErrorKind = "timeout" | "generic";
@@ -47,6 +47,19 @@ export function useApi<T>(path: string | null): State<T> {
 
   const retry = useCallback(() => {
     bumpReloadToken();
+  }, []);
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (stateRef.current.status === "error") {
+        bumpReloadToken();
+      }
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, []);
 
   useEffect(() => {

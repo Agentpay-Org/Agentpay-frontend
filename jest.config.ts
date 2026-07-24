@@ -43,6 +43,9 @@ const config: Config = {
     "./src/lib/resolveApiBase.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/lib/securityHeaders.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/lib/useDebounce.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
+    "./src/lib/useOnlineStatus.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
+    "./src/lib/useApi.ts": { statements: 95, branches: 85, functions: 95, lines: 95 },
+    "./src/components/OfflineBanner.tsx": { statements: 95, branches: 95, functions: 95, lines: 95 },
     // Near-100% files locked at their current coverage to prevent regressions.
     "./src/lib/format.ts": {
       statements: 100,

@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "description": "First-load JS budgets per route (kB). Raise an entry only via a dedicated PR so the change is visible in review.",
+    "warn_at_pct": 90,
+    "unit": "kB"
+  },
+  "routes": {
+    "/": 100,
+    "/about": 100,
+    "/admin": 100,
+    "/agents": 100,
+    "/agents/[agent]": 120,
+    "/api-keys": 100,
+    "/changelog": 100,
+    "/docs": 100,
+    "/events": 200,
+    "/export": 100,
+    "/search": 180,
+    "/services": 100,
+    "/services/[serviceId]": 120,
+    "/services/[serviceId]/agents": 120,
+    "/services/[serviceId]/edit": 120,
+    "/services/new": 120,
+    "/settings": 100,
+    "/stats": 100,
+    "/usage": 100,
+    "/webhooks": 100
+  }
+}

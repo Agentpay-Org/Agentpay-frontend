@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
+import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { TimeAgo } from "@/components/TimeAgo";
 import { safeFormatTimestamp } from "@/lib/format";
@@ -72,6 +73,53 @@ export default function ApiKeysPage() {
   const maskedKey = created
     ? created.slice(0, created.indexOf("_") + 1) + "****"
     : "";
+
+  const columns: DataTableColumn<KeyItem>[] = [
+    {
+      key: "label",
+      header: "Label",
+      rowHeader: true,
+      sortable: true,
+      sortAccessor: (k) => k.label,
+      render: (k) => <span className="text-sm font-medium">{k.label}</span>,
+    },
+    {
+      key: "prefix",
+      header: "Key prefix",
+      render: (k) => (
+        <span className="font-mono text-xs text-zinc-500">{k.prefix}...</span>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      sortable: true,
+      sortAccessor: (k) => toTimestampMs(k.createdAt) ?? Number.NEGATIVE_INFINITY,
+      render: (k) => {
+        const createdAtMs = toTimestampMs(k.createdAt);
+        const createdAtIso = safeFormatTimestamp(createdAtMs);
+        return createdAtMs === null ? (
+          <time title={createdAtIso}>{createdAtIso}</time>
+        ) : (
+          <TimeAgo ts={createdAtMs} />
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (k) => (
+        <button
+          type="button"
+          onClick={() => setPendingRevoke(k)}
+          className="rounded border border-zinc-300 px-3 py-1 text-xs"
+        >
+          Revoke
+        </button>
+      ),
+    },
+  ];
 
   return (
     <PageShell>
@@ -146,41 +194,12 @@ export default function ApiKeysPage() {
       )}
 
       {items && items.length > 0 && (
-        <ul className="divide-y divide-zinc-200">
-          {items.map((k) => {
-            const createdAtMs = toTimestampMs(k.createdAt);
-            const createdAtIso = safeFormatTimestamp(createdAtMs);
-
-            return (
-              <li
-                key={k.prefix}
-                className="flex items-center justify-between gap-2 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">{k.label}</p>
-                  <p className="font-mono text-xs text-zinc-500">
-                    {k.prefix}...
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    Created{" "}
-                    {createdAtMs === null ? (
-                      <time title={createdAtIso}>{createdAtIso}</time>
-                    ) : (
-                      <TimeAgo ts={createdAtMs} />
-                    )}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPendingRevoke(k)}
-                  className="rounded border border-zinc-300 px-3 py-1 text-xs"
-                >
-                  Revoke
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <DataTable
+          caption="API keys"
+          columns={columns}
+          data={items}
+          getRowKey={(k) => k.prefix}
+        />
       )}
     </PageShell>
   );

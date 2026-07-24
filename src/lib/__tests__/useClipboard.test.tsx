@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
-import { useClipboard } from "../useClipboard";
+import { useClipboard, copyToClipboard } from "../useClipboard";
 
 describe("useClipboard", () => {
   const originalClipboard = navigator.clipboard;
@@ -138,4 +138,48 @@ describe("useClipboard", () => {
       configurable: true,
     });
   });
+
+  describe("copyToClipboard standalone function", () => {
+    it("uses navigator.clipboard.writeText when available", async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+
+      const res = await copyToClipboard("hello world");
+      expect(res).toEqual({ success: true });
+      expect(writeText).toHaveBeenCalledWith("hello world");
+    });
+
+    it("uses document.execCommand fallback when navigator.clipboard is undefined", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+      });
+
+      const execCommand = jest.fn().mockReturnValue(true);
+      document.execCommand = execCommand;
+
+      const res = await copyToClipboard("fallback text");
+      expect(res).toEqual({ success: true });
+      expect(execCommand).toHaveBeenCalledWith("copy");
+    });
+
+    it("returns error when execCommand fallback throws an error", async () => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        configurable: true,
+      });
+
+      document.execCommand = jest.fn().mockImplementation(() => {
+        throw new Error("execCommand not supported");
+      });
+
+      const res = await copyToClipboard("error text");
+      expect(res.success).toBe(false);
+      expect(res.error?.message).toBe("execCommand not supported");
+    });
+  });
 });
+

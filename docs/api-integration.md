@@ -21,6 +21,7 @@ All requests go through the lightweight `fetch` wrapper in
 | Empty response | HTTP **204** resolves to `undefined` (no body parsed) | `apiClient.ts` |
 | Timeout | Default **10 000 ms**; on expiry the call rejects with `ApiTimeoutError` | `apiClient.ts` |
 | Success | 2xx JSON body is returned as the generic `T` | `apiClient.ts` |
+| GET deduplication | `apiGet` deduplicates in-flight GET requests by resolved URL; a single network fetch serves all concurrent callers. Entries are evicted on settle (success or error) so no stale data is served. Caller abort signals are not wired to the shared request — aborting one subscriber does not cancel the fetch for others. | `apiClient.ts` |
 
 ### Timeout and Error Handling
 
@@ -41,6 +42,20 @@ type ApiError = {
 
 If the body is missing/!ok, the wrapper falls back to `error: "http_error"` and a
 `Request failed with status <code>` message.
+
+### GET request deduplication
+
+Concurrent `apiGet` calls to the same resolved URL share a single in-flight fetch.
+The first call triggers the network request; subsequent callers receive the same
+pending promise. Once the promise settles (fulfilled or rejected) the cache entry
+is removed so the next call always gets fresh data.
+
+Caller `AbortSignal` instances are **not** forwarded to the shared underlying
+`fetch` — aborting one subscriber does not cancel the request for others,
+preventing a component unmount from disrupting another component's data.
+
+Non-idempotent methods (`POST`, `PATCH`, `DELETE`) are never deduplicated;
+`apiFetch` called directly is also unaffected.
 
 ### Pause flag
 
@@ -70,6 +85,12 @@ type Service   = { serviceId: string; priceStroops: number };
 type Rollup    = { serviceId: string; total: number; agents: number };
 type TopAgents = { serviceId: string; items: { agent: string; total: number }[] };
 ```
+
+> **Client-side validation**: `priceStroops` is parsed by `parseNonNegativeInt` in
+> [`src/lib/validateNumber.ts`](../src/lib/validateNumber.ts), which rejects values
+> outside `0 … 9,007,199,254,740,991` (`Number.MAX_SAFE_INTEGER`), exponent notation
+> (e.g. `"1e2"`), and whitespace-padded input. The accepted range is shown as a field
+> hint on both the create (`services/new`) and edit (`services/[serviceId]/edit`) forms.
 
 ## Usage
 

@@ -32,11 +32,10 @@ export function TextField({
   const descId = description ? `${inputId}-desc` : undefined;
   const errId = error ? `${inputId}-err` : undefined;
   return (
-    <label
-      htmlFor={inputId}
-      className={`flex flex-col gap-1 text-sm ${className}`}
-    >
-      <span>{label}</span>
+    <div className={`flex flex-col gap-1 text-sm ${className}`}>
+      <label htmlFor={inputId}>
+        <span>{label}</span>
+      </label>
       <input
         id={inputId}
         aria-describedby={[descId, errId].filter(Boolean).join(" ") || undefined}
@@ -54,6 +53,6 @@ export function TextField({
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 }

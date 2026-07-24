@@ -14,7 +14,10 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@next/swc-win32-x64-msvc": "^16.1.6",
     "bs-logger": "^0.2.6",
+    "lightningcss": "^1.33.0",
+    "lightningcss-win32-x64-msvc": "^1.33.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"

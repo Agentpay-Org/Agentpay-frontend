@@ -54,8 +54,11 @@ export default function ApiKeysPage() {
   };
 
   const maskedKey = created
-    ? created.slice(0, created.indexOf("_") + 1) + "****"
+    ? created.slice(0, Math.max(created.indexOf("_"), 0) + 1) + "****"
     : "";
+
+  const revealToggleLabel = showFull ? "Hide full API key" : "Show full API key";
+  const revealStateMessage = showFull ? "API key is visible" : "API key is hidden";
 
   return (
     <main
@@ -96,21 +99,26 @@ export default function ApiKeysPage() {
       </form>
 
       {created && (
-        <div role="status" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
+        <div aria-label="Created API key" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
           <p className="font-medium">New key - copy now, shown only once.</p>
           <div className="flex items-center gap-2 font-mono text-sm">
-            <code className="flex-1 break-all">
+            <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
             <button
               type="button"
+              aria-controls="created-api-key"
+              aria-label={revealToggleLabel}
               aria-pressed={showFull}
               onClick={() => setShowFull((v) => !v)}
             >
-              {showFull ? "Hide" : "Reveal"}
+              {showFull ? "Hide" : "Show"}
             </button>
             <CopyButton value={created} label="Copy" />
           </div>
+          <p aria-live="polite" aria-atomic="true" className="sr-only">
+            {revealStateMessage}
+          </p>
           <button type="button" onClick={onDismiss}>
             Done - I have saved it
           </button>

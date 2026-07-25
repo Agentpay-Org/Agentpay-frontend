@@ -19,6 +19,10 @@ jest.mock("@/lib/csv", () => {
 const apiGetMock = apiGet as jest.MockedFunction<typeof apiGet>;
 const apiPostMock = apiPost as jest.MockedFunction<typeof apiPost>;
 const downloadCsvMock = downloadCsv as jest.MockedFunction<typeof downloadCsv>;
+const getLatestStatus = () => {
+  const statuses = screen.getAllByRole("status");
+  return statuses[statuses.length - 1];
+};
 
 describe("UsagePage", () => {
   beforeEach(() => {
@@ -242,7 +246,7 @@ describe("UsagePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/No usage rows match/i);
+      expect(getLatestStatus()).toHaveTextContent(/No usage rows match/i);
     });
 
     expect(screen.getByRole("button", { name: /Export CSV/i })).toBeDisabled();
@@ -356,7 +360,7 @@ describe("UsagePage", () => {
 
     // Verify busy state
     expect(queryButton).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent(/Querying…/i);
+    expect(getLatestStatus()).toHaveTextContent(/Querying…/i);
 
     // Resolve first query
     resolveQuery!({
@@ -366,7 +370,7 @@ describe("UsagePage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(getLatestStatus()).toHaveTextContent(
         /a \/ s: 10 request\(s\)/i,
       );
     });
@@ -387,8 +391,8 @@ describe("UsagePage", () => {
     fireEvent.click(queryButton);
 
     // Prior result should be cleared immediately
-    expect(screen.queryByText(/10 request\(s\)/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/Querying…/i);
+    expect(screen.queryByText(/a \/ s: 10 request\(s\)/i)).not.toBeInTheDocument();
+    expect(getLatestStatus()).toHaveTextContent(/Querying…/i);
 
     resolveQuery2!({
       agent: "b",
@@ -397,7 +401,7 @@ describe("UsagePage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(getLatestStatus()).toHaveTextContent(
         /b \/ s: 20 request\(s\)/i,
       );
     });
@@ -417,7 +421,7 @@ describe("UsagePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(getLatestStatus()).toHaveTextContent(
         /a \/ s: 10 request\(s\)/i,
       );
     });
@@ -431,7 +435,7 @@ describe("UsagePage", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(/Not found/i);
     });
     // The previous success result should be gone
-    expect(screen.queryByText(/10 request\(s\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/a \/ s: 10 request\(s\)/i)).not.toBeInTheDocument();
   });
 
   it("handles an empty/zero total", async () => {
@@ -451,7 +455,7 @@ describe("UsagePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Query/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(getLatestStatus()).toHaveTextContent(
         /zero \/ s: 0 request\(s\)/i,
       );
     });

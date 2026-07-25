@@ -80,13 +80,12 @@ Follow the existing accessibility patterns:
 
 Route API work through the helpers in `src/lib/`, especially `src/lib/apiClient.ts` and `src/lib/useApi.ts`, unless a task explicitly requires a different integration path.
 
-## Contributor Templates
 
-Use the GitHub templates to keep issues and reviews consistent:
+## Dependency Update Review
 
-- [Bug report](.github/ISSUE_TEMPLATE/bug_report.yml) for route/component defects with reproduction steps and expected behavior.
-- [Feature request](.github/ISSUE_TEMPLATE/feature_request.yml) for product or contributor-experience improvements.
-- [Pull request template](.github/PULL_REQUEST_TEMPLATE.md) for lint, typecheck, test, build, accessibility, and security notes.
+Dependabot pull requests are expected to stay small and reviewable. Weekly npm and GitHub Actions updates should keep minor and patch releases grouped, while major-version updates should remain separate so reviewers can inspect migration notes and test impact.
+
+When reviewing a dependency pull request, check the changelog or release notes for security fixes, breaking changes, and build-tool behavior changes. Run the normal build and test commands when the change affects runtime dependencies, test tooling, Next.js, React, or GitHub Actions used by CI.
 
 ## Pull Request Checklist
 

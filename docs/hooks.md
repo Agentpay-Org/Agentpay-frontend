@@ -12,6 +12,7 @@ contract changes.
 | `useClipboard` | `src/lib/useClipboard.ts` | Exported |
 | `useDebounce` | `src/lib/useDebounce.ts` | Exported |
 | `useLocalState` | `src/lib/useLocalState.ts` | Exported |
+| `useOnlineStatus` | `src/lib/useOnlineStatus.ts` | Exported |
 | `usePolling` | `src/lib/usePolling.ts` | Exported |
 
 ## `useApi`
@@ -340,7 +341,52 @@ export function CopyButton({ value }: { value: string }) {
 
 Use this hook to extract clipboard interactions and timeout-based state resets from visual components.
 
+## `useOnlineStatus`
+
+```ts
+function useOnlineStatus(): { isOnline: boolean };
+```
+
+Import from:
+
+```ts
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
+```
+
+Parameters:
+
+- None.
+
+Return shape:
+
+```ts
+{ isOnline: boolean }
+```
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- Uses `useSyncExternalStore` to subscribe to the browser's `online` and `offline` window events, so the value is always consistent with the actual DOM state and never causes tearing during concurrent rendering.
+- The server snapshot returns `true`, so SSR always renders the online state.
+- `isOnline` reflects `navigator.onLine` after the most recent `online` / `offline` event.
+
+Minimal real usage, based on `src/components/OfflineBanner.tsx`:
+
+```tsx
+"use client";
+
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
+
+export function OfflineIndicator() {
+  const { isOnline } = useOnlineStatus();
+  if (isOnline) return null;
+  return <div role="alert">You are offline.</div>;
+}
+```
+
+Use this hook in components that need to react to connectivity changes, such as dismissible offline banners or read-only mode toggles. The dismissible `<OfflineBanner />` component is already embedded in the root layout — most pages will not need to use this hook directly.
+
 ## Coverage Note
 
 This reference covers every hook exported from `src/lib` at the time of writing:
-`useApi`, `useClipboard`, `usePolling`, `useDebounce`, and `useLocalState`.
+`useApi`, `useClipboard`, `useOnlineStatus`, `usePolling`, `useDebounce`, and `useLocalState`.

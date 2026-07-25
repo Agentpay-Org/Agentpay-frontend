@@ -71,55 +71,11 @@ export default function ApiKeysPage() {
   };
 
   const maskedKey = created
-    ? created.slice(0, created.indexOf("_") + 1) + "****"
+    ? created.slice(0, Math.max(created.indexOf("_"), 0) + 1) + "****"
     : "";
 
-  const columns: DataTableColumn<KeyItem>[] = [
-    {
-      key: "label",
-      header: "Label",
-      rowHeader: true,
-      sortable: true,
-      sortAccessor: (k) => k.label,
-      render: (k) => <span className="text-sm font-medium">{k.label}</span>,
-    },
-    {
-      key: "prefix",
-      header: "Key prefix",
-      render: (k) => (
-        <span className="font-mono text-xs text-zinc-500">{k.prefix}...</span>
-      ),
-    },
-    {
-      key: "createdAt",
-      header: "Created",
-      sortable: true,
-      sortAccessor: (k) => toTimestampMs(k.createdAt) ?? Number.NEGATIVE_INFINITY,
-      render: (k) => {
-        const createdAtMs = toTimestampMs(k.createdAt);
-        const createdAtIso = safeFormatTimestamp(createdAtMs);
-        return createdAtMs === null ? (
-          <time title={createdAtIso}>{createdAtIso}</time>
-        ) : (
-          <TimeAgo ts={createdAtMs} />
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      align: "right",
-      render: (k) => (
-        <button
-          type="button"
-          onClick={() => setPendingRevoke(k)}
-          className="rounded border border-zinc-300 px-3 py-1 text-xs"
-        >
-          Revoke
-        </button>
-      ),
-    },
-  ];
+  const revealToggleLabel = showFull ? "Hide full API key" : "Show full API key";
+  const revealStateMessage = showFull ? "API key is visible" : "API key is hidden";
 
   return (
     <PageShell>
@@ -156,26 +112,25 @@ export default function ApiKeysPage() {
       </form>
 
       {created && (
-        <div
-          role="status"
-          className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-medium">New key - copy now, shown only once.</p>
-            <CopyButton value={created} label="Copy" />
-          </div>
+        <div aria-label="Created API key" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
+          <p className="font-medium">New key - copy now, shown only once.</p>
           <div className="flex items-center gap-2 font-mono text-sm">
-            <code className="flex-1 break-all">
+            <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
             <button
               type="button"
+              aria-controls="created-api-key"
+              aria-label={revealToggleLabel}
               aria-pressed={showFull}
               onClick={() => setShowFull((v) => !v)}
             >
-              {showFull ? "Hide" : "Reveal"}
+              {showFull ? "Hide" : "Show"}
             </button>
           </div>
+          <p aria-live="polite" aria-atomic="true" className="sr-only">
+            {revealStateMessage}
+          </p>
           <button type="button" onClick={onDismiss}>
             Done - I have saved it
           </button>

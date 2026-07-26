@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 type Props = {
   page: number;
   pageCount: number;
@@ -5,6 +9,16 @@ type Props = {
 };
 
 export function Pagination({ page, pageCount, onChange }: Props) {
+  const [previousPage, setPreviousPage] = useState(page);
+  const [announcement, setAnnouncement] = useState("");
+
+  // Keep the first committed live region empty, then update it in the same
+  // commit as each later controlled page change.
+  if (page !== previousPage) {
+    setPreviousPage(page);
+    setAnnouncement(pageCount > 1 ? `Page ${page} of ${pageCount}` : "");
+  }
+
   if (pageCount <= 1) return null;
   return (
     <nav aria-label="Pagination" className="flex items-center justify-center gap-2 text-sm">
@@ -16,8 +30,11 @@ export function Pagination({ page, pageCount, onChange }: Props) {
       >
         Previous
       </button>
-      <span aria-live="polite">
+      <span>
         Page {page} of {pageCount}
+      </span>
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
       </span>
       <button
         type="button"

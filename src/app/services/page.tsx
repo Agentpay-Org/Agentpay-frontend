@@ -47,35 +47,80 @@ function getAriaSort(key: SortKey, sortKey: SortKey, sortDir: SortDir): "ascendi
   return sortDir === "asc" ? "ascending" : "descending";
 }
 
-function useSorted(services: Service[] | null, sortKey: SortKey, sortDir: SortDir): Service[] | null {
-  return useMemo(() => {
-    if (!services || services.length === 0 || !sortKey) return services;
+export function sortServices(
+  services: Service[] | null,
+  sortKey: SortKey,
+  sortDir: SortDir
+): Service[] | null {
+  if (!services || services.length === 0 || !sortKey) {
+    return services;
+  }
 
-    const indexed = services.map((s, i) => ({ ...s, _index: i }));
-    indexed.sort((a, b) => {
-      let cmp = 0;
+  return services
+    .map((service, index) => ({ service, index }))
+    .sort((a, b) => {
+      let comparison = 0;
+
       switch (sortKey) {
         case "name":
-          cmp = a.serviceId.localeCompare(b.serviceId);
+          comparison = a.service.serviceId.localeCompare(
+            b.service.serviceId
+          );
           break;
+
         case "price":
-          cmp = a.priceStroops - b.priceStroops;
+          comparison =
+            a.service.priceStroops - b.service.priceStroops;
           break;
+
         case "created": {
-          const aVal = a.createdAt != null ? Number(a.createdAt) : null;
-          const bVal = b.createdAt != null ? Number(b.createdAt) : null;
-          if (aVal === null && bVal === null) cmp = 0;
-          else if (aVal === null) cmp = sortDir === "asc" ? 1 : -1;
-          else if (bVal === null) cmp = sortDir === "asc" ? -1 : 1;
-          else cmp = aVal - bVal;
+          const firstCreatedAt =
+            a.service.createdAt != null
+              ? Number(a.service.createdAt)
+              : null;
+
+          const secondCreatedAt =
+            b.service.createdAt != null
+              ? Number(b.service.createdAt)
+              : null;
+
+          if (
+            firstCreatedAt === null &&
+            secondCreatedAt === null
+          ) {
+            comparison = 0;
+          } else if (firstCreatedAt === null) {
+            comparison = sortDir === "asc" ? 1 : -1;
+          } else if (secondCreatedAt === null) {
+            comparison = sortDir === "asc" ? -1 : 1;
+          } else {
+            comparison = firstCreatedAt - secondCreatedAt;
+          }
+
           break;
         }
       }
-      if (cmp !== 0) return sortDir === "asc" ? cmp : -cmp;
-      return a._index - b._index;
-    });
-    return indexed;
-  }, [services, sortKey, sortDir]);
+
+      if (comparison !== 0) {
+        return sortDir === "asc"
+          ? comparison
+          : -comparison;
+      }
+
+      return a.index - b.index;
+    })
+    .map(({ service }) => service);
+}
+
+function useSorted(
+  services: Service[] | null,
+  sortKey: SortKey,
+  sortDir: SortDir
+): Service[] | null {
+  return useMemo(
+    () => sortServices(services, sortKey, sortDir),
+    [services, sortKey, sortDir]
+  );
 }
 
 export function ServiceCopyButton({ serviceId }: { serviceId: string }) {
@@ -242,7 +287,7 @@ export default function ServicesPage() {
       )}
       {!loading && services && services.length > 0 && (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {services.map((s) => (
+          {sortedServices?.map((s) => (
             <li
               key={s.serviceId}
               className="-mx-4 flex items-center justify-between rounded-lg px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"

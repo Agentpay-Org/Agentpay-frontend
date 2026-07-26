@@ -24,6 +24,7 @@ const config: Config = {
       lines: 20,
     },
     // Lock in 100%-covered files to prevent regressions.
+    "./src/app/layout.tsx": { statements: 95, branches: 95, functions: 95, lines: 95 },
     "./src/app/page.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Badge.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/Breadcrumb.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },

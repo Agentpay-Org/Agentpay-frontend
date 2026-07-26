@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { apiGet, ApiTimeoutError } from "./apiClient";
-import { useCallback, useEffect, useReducer } from "react";
 import { apiGet, ApiRateLimitedError, ApiTimeoutError } from "./apiClient";
 
 export type ApiErrorKind = "timeout" | "rate_limited" | "generic";

@@ -17,6 +17,30 @@ type KeyItem = {
   createdAt?: number | string | null;
 };
 
+const columns: DataTableColumn<KeyItem>[] = [
+  {
+    key: "label",
+    header: "Label",
+    sortable: true,
+    sortAccessor: (r) => r.label.toLowerCase(),
+    render: (r) => r.label,
+  },
+  {
+    key: "prefix",
+    header: "Prefix",
+    sortable: true,
+    sortAccessor: (r) => r.prefix,
+    render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
+  },
+  {
+    key: "createdAt",
+    header: "Created",
+    sortable: true,
+    sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
+    render: (r) => <TimeAgo ts={toTimestampMs(r.createdAt) ?? 0} />,
+  },
+];
+
 function toTimestampMs(value: KeyItem["createdAt"]): number | null {
   if (value === null || value === undefined) return null;
   const numeric = typeof value === "number" ? value : Number(value);

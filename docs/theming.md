@@ -157,3 +157,46 @@ This document matches the current implementation:
 - CSS overrides are implemented by `html.dark` / `html.light` plus an OS fallback media query (`src/app/globals.css`).
 - Reduced motion is handled with `@media (prefers-reduced-motion: no-preference)` wrapping theme transitions.
 
+## Font loading with next/font
+
+Typography is powered by **Geist Sans** (body/sans) and **Geist Mono** (monospace), loaded through `next/font/google` in `src/app/layout.tsx`:
+
+```ts
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
+```
+
+- **`subsets: ["latin"]`** — only the Latin glyph subset is downloaded, keeping the bundle small.
+- **`display: "swap"`** — text is rendered in a fallback font immediately while the font file loads, preventing invisible-text (FOIT) and reducing layout shift.
+- **`variable: "--font-*"`** — Next.js generates a CSS custom property pointing to the self-hosted `@font-face` declarations.
+
+### Tailwind integration
+
+The generated CSS variables are mapped to Tailwind's `--font-sans` and `--font-mono` tokens inside `@theme inline` in `src/app/globals.css`:
+
+```css
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+```
+
+This allows any Tailwind utility (`font-sans`, `font-mono`) to resolve to the correct self-hosted font face. The `<body>` element receives the classes directly:
+
+```tsx
+<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+```
+
+### CSP compatibility
+
+Because `next/font/google` downloads and self-hosts the font files at build time (served from `/_next/static/media/` under the `'self'` origin), **no external font origins are required** in the Content-Security-Policy. The existing CSP directive `font-src 'self' data:` in `src/lib/securityHeaders.ts` covers these fonts without modification.
+

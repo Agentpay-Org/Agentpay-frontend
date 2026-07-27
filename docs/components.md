@@ -347,3 +347,55 @@ It refreshes every 30 seconds.
 ```tsx
 <TimeAgo ts={event.createdAt} />
 ```
+
+## Pages
+
+### `SettingsPage`
+
+Route: `/settings`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| none | - | - | Server component. Renders the Appearance section with `ThemeToggle`. |
+
+`SettingsPage` is a Next.js page component at `src/app/settings/page.tsx`.
+It exports a static `metadata` object (`{ title: "Settings — AgentPay" }`)
+and a default `SettingsPage` function component. The page wraps its content
+in `PageShell` with `maxWidth="2xl"` and `gap="8"`.
+
+**Composition:**
+
+- `PageShell` — accessible `<main>` wrapper.
+- `ThemeToggle` — light / dark / system selector that persists via
+  `localStorage` (`agentpay.theme` key). See the `ThemeToggle` entry above
+  and `docs/theming.md` for the persistence layer.
+
+**Minimal usage (route-level, no props):**
+
+```tsx
+// src/app/settings/page.tsx
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { PageShell } from "@/components/PageShell";
+
+export const metadata = { title: "Settings — AgentPay" };
+
+export default function SettingsPage() {
+  return (
+    <PageShell maxWidth="2xl" gap="8">
+      <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-medium">Appearance</h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Choose a colour scheme. System follows your OS preference.
+        </p>
+        <ThemeToggle />
+      </section>
+    </PageShell>
+  );
+}
+```
+
+**Extending:** To add new settings sections (e.g. notifications, API keys),
+append additional `<section>` blocks inside the `PageShell`. Each section
+should follow the same pattern: an `<h2>` heading, a short description, and
+the relevant control component.

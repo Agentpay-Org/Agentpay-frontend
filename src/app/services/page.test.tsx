@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { apiGet } from "../../lib/apiClient";
-import ServicesPage from "./page";
+import ServicesPage, { sortServices } from "./page";
 import { ToastProvider } from "../../components/ToastProvider";
 import { truncateMiddle } from "../../lib/format";
 
@@ -10,8 +10,12 @@ jest.mock("../../lib/apiClient", () => ({
 
 const apiGetMock = apiGet as jest.MockedFunction<typeof apiGet>;
 
-function service(serviceId: string, priceStroops: number) {
-  return { serviceId, priceStroops };
+function service(
+  serviceId: string,
+  priceStroops: number,
+  createdAt?: number | string | null
+) {
+  return { serviceId, priceStroops, createdAt };
 }
 
 function renderServicesPage() {
@@ -22,9 +26,236 @@ function renderServicesPage() {
   );
 }
 
+
+describe("sortServices", () => {
+  function getServiceIds(
+    services: Array<{ serviceId: string }> | null
+  ) {
+    return services?.map((item) => item.serviceId);
+  }
+
+  const sortableServices = [
+    service("svc-c", 30, 300),
+    service("svc-a", 10, "100"),
+    service("svc-b", 20, 200),
+  ];
+
+  it("sorts services by name in ascending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "name",
+      "asc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-a",
+      "svc-b",
+      "svc-c",
+    ]);
+  });
+
+  it("sorts services by name in descending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "name",
+      "desc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-c",
+      "svc-b",
+      "svc-a",
+    ]);
+  });
+
+  it("sorts services by price in ascending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "price",
+      "asc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-a",
+      "svc-b",
+      "svc-c",
+    ]);
+  });
+
+  it("sorts services by price in descending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "price",
+      "desc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-c",
+      "svc-b",
+      "svc-a",
+    ]);
+  });
+
+  it("sorts services by creation date in ascending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "created",
+      "asc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-a",
+      "svc-b",
+      "svc-c",
+    ]);
+  });
+
+  it("sorts services by creation date in descending order", () => {
+    const result = sortServices(
+      sortableServices,
+      "created",
+      "desc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-c",
+      "svc-b",
+      "svc-a",
+    ]);
+  });
+
+  it("keeps services with equal values in their original order", () => {
+    const first = service("svc-first", 50, 100);
+    const second = service("svc-second", 50, 200);
+    const third = service("svc-third", 50, 300);
+
+    const result = sortServices(
+      [first, second, third],
+      "price",
+      "desc"
+    );
+
+    expect(result).toEqual([
+      first,
+      second,
+      third,
+    ]);
+  });
+
+  it("keeps equal creation dates in their original order", () => {
+    const first = service("svc-first", 10, 200);
+    const second = service("svc-second", 20, "200");
+    const third = service("svc-third", 30, 200);
+
+    const result = sortServices(
+      [first, second, third],
+      "created",
+      "asc"
+    );
+
+    expect(result).toEqual([
+      first,
+      second,
+      third,
+    ]);
+  });
+
+  it("places services without a creation date last in ascending order", () => {
+    const result = sortServices(
+      [
+        service("svc-missing", 10, null),
+        service("svc-new", 20, 300),
+        service("svc-old", 30, 100),
+      ],
+      "created",
+      "asc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-old",
+      "svc-new",
+      "svc-missing",
+    ]);
+  });
+
+  it("places services without a creation date last in descending order", () => {
+    const result = sortServices(
+      [
+        service("svc-missing", 10),
+        service("svc-old", 20, 100),
+        service("svc-new", 30, 300),
+      ],
+      "created",
+      "desc"
+    );
+
+    expect(getServiceIds(result)).toEqual([
+      "svc-new",
+      "svc-old",
+      "svc-missing",
+    ]);
+  });
+
+  it("keeps multiple services without creation dates stable", () => {
+    const firstMissing = service("svc-first-missing", 10, null);
+    const dated = service("svc-dated", 20, 100);
+    const secondMissing = service("svc-second-missing", 30);
+
+    const result = sortServices(
+      [firstMissing, dated, secondMissing],
+      "created",
+      "asc"
+    );
+
+    expect(result).toEqual([
+      dated,
+      firstMissing,
+      secondMissing,
+    ]);
+  });
+
+  it("handles an empty services list", () => {
+    const services: Array<ReturnType<typeof service>> = [];
+
+    expect(
+      sortServices(services, "name", "asc")
+    ).toBe(services);
+  });
+
+  it("handles a single service", () => {
+    const onlyService = service("svc-only", 25, 100);
+
+    expect(
+      sortServices([onlyService], "price", "desc")
+    ).toEqual([onlyService]);
+  });
+
+  it("handles a null services value", () => {
+    expect(
+      sortServices(null, "created", "asc")
+    ).toBeNull();
+  });
+
+  it("preserves the original list when no sort key is selected", () => {
+    const services = [
+      service("svc-b", 20),
+      service("svc-a", 10),
+    ];
+
+    expect(
+      sortServices(services, "", "asc")
+    ).toBe(services);
+  });
+});
+
 describe("ServicesPage", () => {
   beforeEach(() => {
     apiGetMock.mockReset();
+    window.history.replaceState(
+      null,
+      "",
+      "/services"
+    );
   });
 
   it("renders a spinner while the first page is loading", () => {
@@ -67,6 +298,48 @@ describe("ServicesPage", () => {
     expect(rowLink).toHaveAttribute("href", "/services/svc%2F1");
     expect(screen.getByText(/42 stroops \/ request/i)).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+  });
+
+  it("renders services using the order selected in the URL", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/services?sort=price&dir=asc"
+    );
+
+    apiGetMock.mockResolvedValueOnce({
+      services: [
+        service("svc-expensive", 300),
+        service("svc-cheap", 100),
+        service("svc-middle", 200),
+      ],
+      page: 1,
+      pageCount: 1,
+    } as never);
+
+    renderServicesPage();
+
+    await screen.findByRole("link", {
+      name: /svc-cheap/i,
+    });
+
+    const serviceLinks = screen
+      .getAllByRole("link")
+      .filter(
+        (link) =>
+          link.getAttribute("href") !==
+          "/services/new"
+      );
+
+    expect(
+      serviceLinks.map((link) =>
+        link.getAttribute("href")
+      )
+    ).toEqual([
+      "/services/svc-cheap",
+      "/services/svc-middle",
+      "/services/svc-expensive",
+    ]);
   });
 
   it("shows pagination only when there are multiple pages and refetches when Next is clicked", async () => {

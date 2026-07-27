@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import AdminPage from "./page";
 import { ToastProvider } from "@/components/ToastProvider";
 
@@ -263,6 +264,50 @@ describe("AdminPage — state exclusivity", () => {
     expect(screen.queryByText(/loading status/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no admin data/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Pause$/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Accessible success state and keyboard interaction
+// ---------------------------------------------------------------------------
+
+describe("AdminPage — accessible success state", () => {
+  it("exposes the live status panel with accessible roles and names", async () => {
+    mockFetchSequence([{ ok: true, status: 200, json: { paused: false } }]);
+    renderWithToast(<AdminPage />);
+
+    const statusSection = await screen.findByRole("region", { name: /admin status/i });
+    expect(statusSection).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Pause$/i })).toBeInTheDocument();
+    expect(screen.getByText(/status:/i)).toBeInTheDocument();
+  });
+
+  it("supports keyboard-driven confirmation for the primary admin action", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetchSequence([
+      { ok: true, status: 200, json: { paused: false } },
+      { ok: true, status: 204 },
+      { ok: true, status: 200, json: { paused: true } },
+    ]);
+
+    renderWithToast(<AdminPage />);
+    const toggleButton = await screen.findByRole("button", { name: /^Pause$/i });
+
+    toggleButton.focus();
+    await user.keyboard("{Enter}");
+
+    const dialog = await screen.findByRole("dialog", { name: /pause all writes/i });
+    expect(dialog).toHaveTextContent(/disable all backend writes/i);
+
+    await user.tab();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      const calls = (fetchMock as jest.Mock).mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(calls.some((p) => p.includes("/api/v1/admin/pause"))).toBe(true);
+    });
+
+    expect(await screen.findByText(/Paused/i)).toBeInTheDocument();
   });
 });
 

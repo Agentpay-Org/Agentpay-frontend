@@ -13,13 +13,13 @@ describe("KeyValueGrid", () => {
     );
 
     // semantic structure
-    expect(screen.getByRole("term", { name: /status/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("definition", { name: /active/i })
-    ).toBeInTheDocument();
+    const terms = screen.getAllByRole("term");
+    const definitions = screen.getAllByRole("definition");
 
-    expect(screen.getByRole("term", { name: /plan/i })).toBeInTheDocument();
-    expect(screen.getByRole("definition", { name: /pro/i })).toBeInTheDocument();
+    expect(terms.find((el) => el.textContent === "Status")).toBeInTheDocument();
+    expect(definitions.find((el) => el.textContent === "Active")).toBeInTheDocument();
+    expect(terms.find((el) => el.textContent === "Plan")).toBeInTheDocument();
+    expect(definitions.find((el) => el.textContent === "Pro")).toBeInTheDocument();
   });
 
   it("renders correct label/value text for each row", () => {

@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiPost } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { PageShell } from "@/components/PageShell";
 import { StatusDot } from "@/components/StatusDot";
 import { useToast } from "@/components/ToastProvider";
+import { usePolling } from "@/lib/usePolling";
 
 type AdminStatus = { paused: boolean };
 
@@ -18,6 +22,8 @@ type ToggleState = {
   confirmDescription: string;
   confirmLabel: string;
 };
+
+const ADMIN_STATUS_POLL_INTERVAL_MS = 5000;
 
 const getToggleState = (paused: boolean): ToggleState => {
   if (paused) {
@@ -43,43 +49,28 @@ const getToggleState = (paused: boolean): ToggleState => {
 
 export default function AdminPage() {
   const toast = useToast();
+  const {
+    data: status,
+    error: pollingError,
+    status: fetchStatus,
+    refresh: refreshStatus,
+  } = usePolling<AdminStatus>(
+    "/api/v1/admin/status",
+    ADMIN_STATUS_POLL_INTERVAL_MS
+  );
 
-  const [paused, setPaused] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const paused = status?.paused ?? null;
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  /**
-   * Latest-wins stale-status guard.
-   *
-   * Each call to `load()` increments a monotonically increasing sequence number.
-   * Only the response for the latest in-flight call is allowed to update `paused`/`error`.
-   * This prevents out-of-order fetch responses from clobbering a newer state.
-   */
-  const loadSeqRef = useRef(0);
-
-  const load = useCallback(async () => {
-    const callSeq = ++loadSeqRef.current;
-    setError(null);
-
-    try {
-      const b = await apiGet<AdminStatus>("/api/v1/admin/status");
-      if (callSeq !== loadSeqRef.current) return;
-      setPaused(b.paused);
-    } catch (e) {
-      if (callSeq !== loadSeqRef.current) return;
-      setError((e as Error).message);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Only pass pollingError to AlertError when data is already visible (i.e.
+  // the EmptyState error panel is NOT showing). When there's no data yet,
+  // the error is already rendered inside the EmptyState and must not also
+  // appear in AlertError — that would produce duplicate "Network error" text.
+  const error = actionError ?? (paused !== null ? pollingError : null);
 
   const toggleState = useMemo(() => {
     if (paused === null) return null;
-
-
     return getToggleState(paused);
   }, [paused]);
 
@@ -91,14 +82,14 @@ export default function AdminPage() {
   }, [toggleState]);
 
   const refreshAfterAction = useCallback(async () => {
-    await load();
-  }, [load]);
+    await refreshStatus();
+  }, [refreshStatus]);
 
   const onConfirm = useCallback(async () => {
     if (paused === null || !endpoint) return;
 
     setConfirmOpen(false);
-    setError(null);
+    setActionError(null);
     setPending(true);
 
     try {
@@ -107,7 +98,7 @@ export default function AdminPage() {
       await refreshAfterAction();
     } catch (e) {
       const message = (e as Error).message;
-      setError(message);
+      setActionError(message);
       toast.push(message, "error");
     } finally {
       setPending(false);
@@ -115,27 +106,69 @@ export default function AdminPage() {
   }, [endpoint, paused, refreshAfterAction, toast]);
 
   const onOpenConfirm = useCallback(() => {
-    if (paused === null) return;
-    if (pending) return;
     setConfirmOpen(true);
-  }, [paused, pending]);
+  }, []);
 
   const statusVariant = paused ? "down" : "ok";
-
   const toggleButtonLabel = paused ? "Unpause" : "Pause";
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell maxWidth="xl">
       <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
 
-      {paused === null && !error && <p>Loading status…</p>}
+      {/*
+       * aria-live="polite" announces state transitions to screen readers
+       * without interrupting ongoing speech.
+       */}
+      <div aria-live="polite" aria-atomic="true">
+        {/* Loading state */}
+        {fetchStatus === "loading" && paused === null && (
+          <p className="text-sm text-zinc-500" role="status">
+            Loading status…
+          </p>
+        )}
 
+        {/* Error state — polling failed and no data is available yet */}
+        {fetchStatus === "error" && paused === null && !actionError && (
+          <EmptyState
+            title="Could not load admin status"
+            description={pollingError ?? "An unexpected error occurred."}
+            action={
+              <button
+                type="button"
+                onClick={() => void refreshStatus()}
+                className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-black"
+              >
+                Retry
+              </button>
+            }
+          />
+        )}
+
+        {/* Empty state — fetch succeeded but returned no usable payload */}
+        {fetchStatus === "ok" && paused === null && (
+          <EmptyState
+            title="No admin data available"
+            description="The server returned an empty response. Try refreshing."
+            action={
+              <button
+                type="button"
+                onClick={() => void refreshStatus()}
+                className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-black"
+              >
+                Refresh
+              </button>
+            }
+          />
+        )}
+      </div>
+
+      {/* Live status panel — only when data is available */}
       {paused !== null && (
-        <section className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <section
+          aria-label="Admin status"
+          className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+        >
           <div className="flex items-center gap-3">
             <StatusDot variant={statusVariant} />
             <p>
@@ -166,18 +199,12 @@ export default function AdminPage() {
             void onConfirm();
           }}
           onCancel={() => {
-            if (pending) return;
             setConfirmOpen(false);
           }}
         />
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
-    </main>
+      <AlertError message={error} />
+    </PageShell>
   );
 }
-

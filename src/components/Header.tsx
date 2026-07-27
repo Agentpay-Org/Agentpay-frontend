@@ -45,16 +45,8 @@ function MobileNav({
   setMenuOpen: (next: boolean | ((prev: boolean) => boolean)) => void;
 }) {
   const toggleId = useId();
-
   const panelId = `${toggleId}-panel`;
-
   const toggleRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    // Close on route change.
-    setMenuOpen(false);
-  }, [pathname, setMenuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -63,23 +55,13 @@ function MobileNav({
       if (e.key === "Escape") {
         e.preventDefault();
         setMenuOpen(false);
+        toggleRef.current!.focus();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [menuOpen, setMenuOpen]);
-
-  useEffect(() => {
-    if (menuOpen) {
-      const first = panelRef.current?.querySelector<HTMLElement>(
-        "a[role='menuitem'], a, [role='menuitem']"
-      );
-      first?.focus?.();
-      return;
-    }
-    toggleRef.current?.focus?.();
-  }, [menuOpen]);
 
   return (
     <div className="md:hidden">
@@ -106,19 +88,17 @@ function MobileNav({
       {menuOpen && (
         <div
           id={panelId}
-          ref={panelRef}
           role="region"
           aria-label="Mobile navigation"
           className="mt-2 rounded-md border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-900"
         >
-          <ul className="p-1" role="menu">
+          <ul className="p-1">
             {primary.map((l) => {
               const active = isActive(pathname, l.href);
               return (
-                <li key={l.href} role="none">
+                <li key={l.href}>
                   <Link
                     href={l.href}
-                    role="menuitem"
                     aria-current={active ? "page" : undefined}
                     onClick={() => setMenuOpen(false)}
                     className={`block w-full px-4 py-2 text-sm hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-800 ${
@@ -138,10 +118,9 @@ function MobileNav({
             {secondary.map((l) => {
               const active = isActive(pathname, l.href);
               return (
-                <li key={l.href} role="none">
+                <li key={l.href}>
                   <Link
                     href={l.href}
-                    role="menuitem"
                     aria-current={active ? "page" : undefined}
                     onClick={() => setMenuOpen(false)}
                     className={`block w-full px-4 py-2 text-sm hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-800 ${
@@ -167,6 +146,7 @@ export function Header() {
 
   // Close desktop dropdown on route change.
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect
     setMoreOpen(false);
     setMobileOpen(false);
   }, [pathname]);

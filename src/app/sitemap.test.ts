@@ -50,4 +50,49 @@ describe("sitemap metadata route", () => {
 
     expect(sitemap()[0]?.url).toBe("http://localhost:3000/");
   });
+
+  it("strips a trailing slash from the configured origin", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com/";
+
+    const urls = sitemap().map((e) => e.url);
+    for (const url of urls) {
+      // Ensure no double-slash in the path portion (after the protocol)
+      const path = new URL(url).pathname;
+      expect(path).not.toMatch(/\/\//);
+    }
+  });
+
+  it("assigns priority 1 to the home route", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const homeEntry = sitemap().find((e) => new URL(e.url).pathname === "/");
+    expect(homeEntry?.priority).toBe(1);
+  });
+
+  it("assigns priority 0.7 to non-home routes", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const nonHome = sitemap().filter((e) => new URL(e.url).pathname !== "/");
+    for (const entry of nonHome) {
+      expect(entry.priority).toBe(0.7);
+    }
+  });
+
+  it("sets changeFrequency to weekly for every entry", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const entries = sitemap();
+    for (const entry of entries) {
+      expect(entry.changeFrequency).toBe("weekly");
+    }
+  });
+
+  it("sets lastModified to a Date instance for every entry", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const entries = sitemap();
+    for (const entry of entries) {
+      expect(entry.lastModified).toBeInstanceOf(Date);
+    }
+  });
 });

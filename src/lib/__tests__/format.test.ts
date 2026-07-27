@@ -6,23 +6,57 @@ import {
   formatTime,
   safeFormatTimestamp,
   safeStringify,
+  TRUNCATE_ELLIPSIS,
+  TRUNCATE_HEAD_DEFAULT,
+  TRUNCATE_TAIL_DEFAULT,
+  truncateMiddle,
 } from "../format";
 
 describe("format", () => {
-  it("formatStroops scales to XLM", () => {
+  it("formatStroops scales to XLM by default", () => {
     expect(formatStroops(0)).toBe("0 XLM");
     expect(formatStroops(10_000_000)).toBe("1.00 XLM");
-    expect(formatStroops(1_000)).toBe("1,000 stroops");
-  });
-  it("formatStroops groups large XLM values and preserves sub-cent precision", () => {
     expect(formatStroops(12_345_678_900)).toBe("1,234.56789 XLM");
+    expect(formatStroops(1_000)).toBe("1,000 stroops");
     expect(formatStroops(1)).toBe("1 stroop");
     expect(formatStroops(999)).toBe("999 stroops");
-    expect(formatStroops(1_000)).toBe("1,000 stroops");
   });
-  it("formatRequests adds separators", () => {
+
+  it("formatStroops preserves sub-cent precision and falls back to raw stroops", () => {
+    expect(formatStroops(99_999)).toBe("99,999 stroops");
+    expect(formatStroops(100_000)).toBe("0.01 XLM"); // 0.01 XLM is 100,000 stroops (exactly 1 cent)
+  });
+
+  it("formatStroops supports forcing raw stroops formatting", () => {
+    expect(formatStroops(10_000_000, true)).toBe("10,000,000 stroops");
+    expect(formatStroops(10_000_000, { forceRaw: true })).toBe("10,000,000 stroops");
+    expect(formatStroops(1, true)).toBe("1 stroop");
+    expect(formatStroops(0, true)).toBe("0 XLM"); // 0 remains stable as "0 XLM"
+    expect(formatStroops(10_000_000, { forceRaw: false })).toBe("1.00 XLM");
+  });
+
+  it("formatStroops supports custom locale formatting", () => {
+    // de-DE uses "." for thousands and "," for decimals
+    expect(formatStroops(12_345_678_900, { locale: "de-DE" })).toBe("1.234,56789 XLM");
+    expect(formatStroops(1_000, { locale: "de-DE" })).toBe("1.000 stroops");
+    expect(formatStroops(1_000_000, { forceRaw: true, locale: "de-DE" })).toBe("1.000.000 stroops");
+  });
+
+  it("formatStroops handles negative values properly", () => {
+    expect(formatStroops(-1)).toBe("-1 stroop");
+    expect(formatStroops(-1_000)).toBe("-1,000 stroops");
+    expect(formatStroops(-10_000_000)).toBe("-1.00 XLM");
+    expect(formatStroops(-12_345_678_900)).toBe("-1,234.56789 XLM");
+    expect(formatStroops(-10_000_000, true)).toBe("-10,000,000 stroops");
+    expect(formatStroops(-10_000_000, { forceRaw: true, locale: "de-DE" })).toBe("-10.000.000 stroops");
+  });
+
+  it("formatRequests adds separators and supports locales", () => {
     expect(formatRequests(1234567)).toBe("1,234,567");
+    expect(formatRequests(1234567, "de-DE")).toBe("1.234.567");
+    expect(formatRequests(1234567, { locale: "de-DE" })).toBe("1.234.567");
   });
+
   it("formatTime returns HH:MM:SS", () => {
     expect(formatTime(0)).toBe("00:00:00");
   });
@@ -76,10 +110,17 @@ describe("safeStringify", () => {
     expect(result).toContain("[BigInt:10]");
   });
 
+  it("replaces bigint values inside arrays", () => {
+    expect(safeStringify([BigInt(7)])).toContain("[BigInt:7]");
+  });
+
   it("replaces functions and undefined leaves with safe markers", () => {
     const result = safeStringify({ fn: () => undefined, missing: undefined });
     expect(result).toContain("[Function]");
     expect(result).toContain("[undefined]");
+
+    const resultWithSym = safeStringify({ sym: Symbol("x") });
+    expect(resultWithSym).toContain("[Symbol]");
   });
 
   it("truncates oversized payloads and appends the visible marker", () => {
@@ -97,6 +138,18 @@ describe("safeStringify", () => {
     expect(result.endsWith(EVENT_PAYLOAD_TRUNCATED_MARKER.trim())).toBe(false);
   });
 
+  it("respects a custom maxChars value when truncating", () => {
+    const result = safeStringify({ data: "abcdef" }, 10);
+    expect(result.length).toBe(10 + EVENT_PAYLOAD_TRUNCATED_MARKER.length);
+    expect(result).toContain(EVENT_PAYLOAD_TRUNCATED_MARKER.trim());
+  });
+
+  it("does not truncate a payload exactly at the limit", () => {
+    const payload = { status: "ok" };
+    const serialised = JSON.stringify(payload, null, 2);
+    expect(safeStringify(payload, serialised.length)).toBe(serialised);
+  });
+
   it("falls back to a sentinel string instead of throwing if stringify explodes", () => {
     const trap: Record<string, unknown> = {};
     Object.defineProperty(trap, "boom", {
@@ -106,6 +159,66 @@ describe("safeStringify", () => {
       },
     });
     expect(safeStringify(trap)).toBe("[unserialisable]");
+  });
+
+  it("handles custom toJSON returning undefined correctly", () => {
+    expect(safeStringify({ toJSON: () => undefined })).toBe('"[undefined]"');
+  });
+});
+
+describe("truncateMiddle", () => {
+  const stellarId = "GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUV"; // Stellar-style id
+
+  it("collapses the middle of a long identifier keeping both ends", () => {
+    expect(truncateMiddle(stellarId, 8, 6)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("uses the documented defaults when head/tail are omitted", () => {
+    expect(truncateMiddle(stellarId)).toBe(
+      truncateMiddle(stellarId, TRUNCATE_HEAD_DEFAULT, TRUNCATE_TAIL_DEFAULT)
+    );
+    expect(truncateMiddle(stellarId)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("returns the input unchanged when it fits the budget", () => {
+    // budget = head + tail + 1 (the ellipsis)
+    expect(truncateMiddle("abc", 8, 6)).toBe("abc");
+    expect(truncateMiddle("exactly-15-char", 8, 6)).toBe("exactly-15-char"); // length 15 === 8 + 6 + 1
+    expect(truncateMiddle("", 8, 6)).toBe("");
+  });
+
+  it("truncates once the value exceeds the budget by a single character", () => {
+    const sixteen = "exactly-16-chars";
+    expect(sixteen).toHaveLength(16);
+    expect(truncateMiddle(sixteen, 8, 6)).toBe(`exactly-${TRUNCATE_ELLIPSIS}-chars`);
+    expect(truncateMiddle(sixteen, 8, 6)).toHaveLength(15);
+  });
+
+  it("supports asymmetric and zero head/tail budgets", () => {
+    expect(truncateMiddle("abcdefghij", 3, 0)).toBe("abc…");
+    expect(truncateMiddle("abcdefghij", 0, 3)).toBe("…hij");
+    expect(truncateMiddle("abcdefghij", 0, 0)).toBe("…");
+  });
+
+  it("clamps negative and fractional head/tail values", () => {
+    expect(truncateMiddle("abcdefghij", -5, -5)).toBe("…");
+    expect(truncateMiddle("abcdefghij", 2.9, 1.9)).toBe("ab…j");
+  });
+
+  it("falls back to defaults for non-finite head/tail values", () => {
+    expect(truncateMiddle(stellarId, NaN, Infinity)).toBe("GABCDEFG…QRSTUV");
+  });
+
+  it("never splits surrogate pairs (counts code points, not UTF-16 units)", () => {
+    const emojiId = "😀😁😂🤣😃😄😅😆😉😊"; // 10 code points, 20 UTF-16 units
+    const result = truncateMiddle(emojiId, 2, 2);
+    expect(result).toBe("😀😁…😉😊");
+    // No lone surrogates anywhere in the output.
+    expect(result).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+  });
+
+  it("keeps short multi-byte strings untouched", () => {
+    expect(truncateMiddle("🚀🌕", 8, 6)).toBe("🚀🌕");
   });
 });
 
@@ -128,6 +241,10 @@ describe("safeFormatTimestamp", () => {
     expect(safeFormatTimestamp(null)).toBe("—");
   });
 
+  it("falls back for dashed non-date strings", () => {
+    expect(safeFormatTimestamp("not-a-date", "fallback")).toBe("fallback");
+  });
+
   it("honours a custom fallback string", () => {
     expect(safeFormatTimestamp(NaN, "n/a")).toBe("n/a");
   });
@@ -136,5 +253,9 @@ describe("safeFormatTimestamp", () => {
     // The renderer uses the em dash by default so the missing-time placeholder
     // doesn't visually collide with a numeric timestamp.
     expect(safeFormatTimestamp(NaN)).toBe("\u2014");
+  });
+
+  it("handles out of range finite numbers in safeFormatTimestamp to cover line 167 branch", () => {
+    expect(safeFormatTimestamp(1e20)).toBe("—");
   });
 });

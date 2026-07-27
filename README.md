@@ -26,14 +26,22 @@ Dashboard and Stellar wallet integration for the AgentPay protocol (machine-to-m
    npm install
    ```
 
-3. **Verify setup**:
+3. **Configure environment variables (optional)**:
+
+   Copy [.env.example](.env.example) to `.env.local` to customize local environment settings:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. **Verify setup**:
 
    ```bash
    npm run build
    npm test
    ```
 
-4. **Run locally**:
+5. **Run locally**:
    ```bash
    npm run dev
    ```
@@ -90,6 +98,13 @@ agentpay-frontend/
     └── ci.yml                                    # CI: build, test
 ```
 
+## Security
+
+Please report suspected vulnerabilities privately. See [SECURITY.md](SECURITY.md) for supported versions, response expectations, disclosure scope, and the private reporting path. The CSP and browser header architecture is documented in [docs/security-headers.md](docs/security-headers.md).
+## Route architecture
+
+For a detailed breakdown of each route's responsibility, render mode (server vs client), nested layout, and backend endpoints, see [docs/architecture.md](docs/architecture.md).
+
 ## Route map (frontend)
 
 Backend endpoints are taken from the companion documentation page `src/app/docs/page.tsx` and from the API client usage throughout `src/app/*`.
@@ -101,21 +116,53 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/admin`                      | Admin control surface (pause/unpause/status) | `POST /api/v1/admin/pause`, `POST /api/v1/admin/unpause`, _(reads status via GET `/api/v1/admin/status` in code)_                                 |
 | `/agents`                     | Agents overview                              | _(reads agents list via `/api/v1/agents` in code)_                                                                                                |
 | `/agents/:agent`              | Single-agent view                            | _(reads agent details via `/api/v1/agents/:agent` in code)_                                                                                       |
-| `/api-keys`                   | API keys management                          | _(list/create/delete/update endpoints in code)_                                                                                                   |
+| `/api-keys`                   | API keys management with created-at timestamps and a no-keys empty state | _(list/create/delete/update endpoints in code)_                                                                                                   |
 | `/changelog`                  | Changelog                                    | _(static or calls `/api/v1/changelog` depending on implementation)_                                                                               |
-| `/docs`                       | Short API endpoint reference                 | `GET /api/v1/openapi.json` plus the prose list rendered from `sections` in `src/app/docs/page.tsx` (usage, settle, services, admin pause/unpause) |
+| `/docs` | Short API endpoint reference | `GET /api/v1/openapi.json` plus the prose list rendered from `src/app/docs/page.tsx` (usage, settle, services, admin pause/unpause), filterable via a debounced search input. Each endpoint includes a copyable curl example. |
 | `/events`                     | Event log renderer                           | _(reads events stream/poll via `/api/v1/events` endpoints in code)_                                                                               |
 | `/export`                     | Export data                                  | _(calls export endpoints in code)_                                                                                                                |
 | `/search`                     | Global search                                | _(calls search endpoint in code)_                                                                                                                 |
 | `/services`                   | Services list                                | `GET /api/v1/services` _(and/or list related endpoints in code)_                                                                                  |
 | `/services/:serviceId`        | Service details                              | `GET /api/v1/services/:serviceId` _(plus nested reads in code)_                                                                                   |
 | `/services/:serviceId/agents` | Agents for a given service                   | `GET /api/v1/services/:serviceId/agents`                                                                                                          |
-| `/services/:serviceId/edit`   | Edit service                                 | _(reads service + submits via service update endpoints in code)_                                                                                  |
+| `/services/:serviceId/edit`   | Edit service price with prefill loading, dirty-guard, and success toast | `GET /api/v1/services/:serviceId` (prefill), `PATCH /api/v1/services/:serviceId/price` (submit)                                                |
 | `/services/new`               | Create service                               | `POST /api/v1/services`                                                                                                                           |
-| `/settings`                   | User/app settings                            | _(calls settings endpoints in code)_                                                                                                              |
+| `/settings`                   | User/app settings (theme configuration and Connection section displaying the resolved API base URL) | _(static UI settings surface)_                                                                                                                    |
 | `/stats`                      | Statistics                                   | _(calls stats endpoints in code)_                                                                                                                 |
 | `/usage`                      | Usage totals & settlement workflow           | `POST /api/v1/usage`, `GET /api/v1/usage/:agent/:serviceId`, `POST /api/v1/settle`                                                                |
-| `/webhooks`                   | Webhooks management                          | _(calls webhooks endpoints in code)_                                                                                                              |
+| `/webhooks`                   | Webhooks management                          | _(calls webhooks endpoints in code)_ and displays each webhook registration time relatively with an absolute timestamp tooltip                    |
+
+### Usage identifier validation
+
+The `/usage` record and query forms trim the agent and service identifiers before
+submission. Identifiers must be 1-128 characters and may only contain letters,
+numbers, dots, underscores, hyphens, and colons. Query requests still URL-encode
+the validated identifiers before placing them in the path.
+
+### API keys page notes
+
+The `/api-keys` page lists each key label, prefix, and created-at age with the absolute ISO timestamp available on hover. If the account has no keys, the page renders a clear "No API keys yet" empty state instead of an empty list while preserving the create, reveal-once, copy, and revoke confirmation flows.
+
+### Services edit page notes
+
+The `/services/:serviceId/edit` page shows a `Spinner` while the prefill `GET`
+request is in flight and surfaces fetch failures in a `role="alert"` banner.
+
+Once loaded, the page tracks whether the price field differs from the original
+value (**dirty** state). When dirty:
+
+- A `beforeunload` event listener is registered so the browser prompts the
+  operator before closing the tab or navigating away.
+- The in-app "← Back to service" link triggers a `window.confirm` dialog;
+  the operator can cancel to stay on the page.
+
+On a successful `PATCH`, the page pushes a `"Price updated."` info toast via
+the global `ToastProvider`, clears the dirty flag, and redirects to the service
+detail page. PATCH failures are displayed in a `role="alert"` element.
+
+### Export page notes
+
+The `/export` page builds JSON and CSV export requests from the resolved API base URL. Downloads are fetched as blobs so the UI can disable both buttons during an in-flight request, show the shared `Spinner` with a "Preparing export" status, trigger the browser download with the response filename, show a success toast, and surface backend failures in a `role="alert"` message.
 
 ## Shared components
 
@@ -128,6 +175,18 @@ primitives in `src/components`.
 See [docs/hooks.md](docs/hooks.md) for the shared hook reference, including
 signatures, return shapes, cancellation and SSR notes, and usage examples for
 the hooks in `src/lib`.
+
+The stats page uses `usePolling("/api/v1/stats", 5000)` for its five-second
+refresh loop, and the admin page uses the same hook for
+`/api/v1/admin/status`. Interval cleanup, stale-response guards, action-triggered
+refreshes, and error recovery stay in one shared hook instead of being
+reimplemented in route code.
+
+The agent detail route uses `useApi` for its primary usage request, keyed by the
+URL-encoded agent identifier. Navigating between agents aborts the superseded
+usage request and ignores any stale completion. Its optional lifetime-total
+request remains a soft failure, but is guarded so a slower previous agent cannot
+overwrite the current agent's total.
 
 ## Error boundaries
 
@@ -177,7 +236,9 @@ Key design decisions:
 
 ## Responsive header navigation
 
-On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu with a keyboard-operable toggle (Escape closes; focus returns to the toggle). The inline primary navigation remains for `md` and larger screens.
+On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu. Its real button exposes the menu state to assistive technology, the links remain in the natural Tab order, and Escape closes the menu and returns focus to the toggle. Navigation also closes the menu automatically. The inline primary navigation remains unchanged at `md` and larger screen widths.
+
+Additionally, the Header marks exactly one active route strictly utilizing `aria-current="page"` (leveraging the client-side `usePathname()` context), creating a robust "you are here" cue for assistive technologies.
 
 ## Accessibility
 
@@ -196,6 +257,28 @@ pulse animation is disabled for users who request reduced motion via the
 satisfies [WCAG 4.1.3 Status Messages](https://www.w3.org/WAI/WCAG21/Understanding/status-messages.html).
 Behaviour is covered by [`src/app/loading.test.tsx`](src/app/loading.test.tsx).
 
+### Search result announcements
+
+The search page ([`src/app/search/page.tsx`](src/app/search/page.tsx)) includes a
+visually-hidden `aria-live="polite"` region that announces the number of search results
+to screen readers after the debounced query settles. This ensures assistive-technology
+users receive feedback about result counts without focus being stolen from the search
+input. The announcement format is:
+- "N results for 'query'" for one or more matches
+- "No matches for 'query'" when the search returns zero results
+- No announcement for empty queries
+
+The live region coordinates with the 250ms debounce timing to avoid spamming announcements
+on every keystroke. The region is marked with `aria-atomic="true"` and uses the `sr-only`
+class for visual hiding. This implementation satisfies
+[WCAG 4.1.3 Status Messages](https://www.w3.org/WAI/WCAG21/Understanding/status-messages.html).
+While the debounce window or backend request is pending, the page shows the shared
+`Spinner` with a visible "Searching..." status. Requests include an `AbortSignal`
+and a latest-input guard so out-of-order responses cannot replace newer results.
+Backend errors are shown in a `role="alert"` message instead of being reported as
+an empty result set.
+Behaviour is covered by [`src/app/search/page.test.tsx`](src/app/search/page.test.tsx).
+
 ## API integration
 
 See [docs/api-integration.md](docs/api-integration.md) for the complete reference of
@@ -203,6 +286,8 @@ every backend endpoint the dashboard calls — request bodies, response shapes, 
 shared `ApiError` envelope, the 204/no-body convention, and pause-flag semantics.
 
 ## Environment variables
+
+See [.env.example](.env.example) for a reference template documenting all supported environment variables, default values, inline comments, and origin constraints.
 
 | Variable                        | Visibility                      | Default                 | Purpose                                                                                                                                                                         |
 | ------------------------------- | ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -263,7 +348,11 @@ The 404 page (`src/app/not-found.tsx`) renders a `<nav aria-label="Helpful links
 
 ## Security headers
 
-A baseline security header set (CSP, `X-Frame-Options: DENY`, `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in `next.config.ts` via `src/lib/securityHeaders.ts`. The CSP `connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically; `<a href>` links to external sites (`https://stellar.org`, etc.) remain navigable.
+A baseline security header set (`X-Frame-Options: DENY`, `Referrer-Policy`, `X-Content-Type-Options`, `Permissions-Policy`, HSTS) is wired up in `next.config.ts` via `src/lib/securityHeaders.ts`.
+
+**Content-Security-Policy** is handled separately by `src/proxy.ts` at **request time**, not at build time. The proxy generates a per-request cryptographic nonce and stamps it into `script-src 'nonce-…'`, which allows the inline theme pre-paint script in `src/app/layout.tsx` to execute without `'unsafe-inline'`. The nonce is forwarded via the `x-nonce` request header and read by the layout. The CSP `connect-src` directive tracks `NEXT_PUBLIC_AGENTPAY_API_BASE` automatically; `<a href>` links to external sites (`https://stellar.org`, etc.) remain navigable.
+
+See [`docs/security-headers.md`](docs/security-headers.md) for the full header and CSP architecture, including directive-by-directive rationale, the nonce flow, and the safe workflow for adding allowed origins.
 
 ## Link safety convention
 
@@ -271,6 +360,8 @@ When rendering links:
 
 - Any external link rendered with `target="_blank"` must include `rel="noopener noreferrer"`.
 - Any `href` derived from backend/user data must be validated with `safeHref()` from `src/lib/url.ts`. Unsafe schemes like `javascript:` and `data:` are rejected.
+- Links on the `/docs` page (relative OpenAPI and external GitHub reference link) are validated through `safeHref()`, falling back to plain text if validation fails.
+
 ## Route map (frontend)
 
 | Path | Notes |
@@ -301,21 +392,27 @@ When rendering links:
 The `/events` page renders server-supplied JSON payloads with performance safeguards:
 
 - **Per-payload cap:** Each payload is serialised through `safeStringify` (`src/lib/format.ts`) with a hard cap (`EVENT_PAYLOAD_MAX_CHARS`, default 5,000 chars) and a visible `…(truncated)` marker. Circular references, `BigInt`, functions, and malformed timestamps are replaced with safe sentinels so a bad payload can't crash the page.
-- **Render count cap:** The list is capped at 50 rendered rows (`MAX_RENDERED_EVENTS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing 50 of N events." note appears above the list.
+- **Render count cap:** The list is capped at 100 rendered rows (`MAX_RENDERED_ROWS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing first 100 of N events." note appears above the list.
 - **Stable filtering:** The `useMemo` filter dependencies are minimal (`items`, `debouncedQuery`), so background polling does not trigger unnecessary re-renders when the underlying data is unchanged.
 
 ## Changelog empty state
 
 The `/changelog` page keeps using `useApi("/api/v1/changelog")` for loading release notes. When the backend returns `{ entries: [] }`, it renders the shared `EmptyState` component with a clear "No changelog entries yet" message instead of an empty list. This branch is constant-time and adds no extra network calls.
 
+## Webhooks empty and loading states
+
+The `/webhooks` page shows the shared `Spinner` component during the initial fetch. Once the list resolves, if it is empty, it renders the `EmptyState` component with "No webhooks registered yet" and helpful guidance. When webhooks are present, they are rendered inside an accessible region for better screen-reader discovery.
+
 ## Formatting conventions
 
 The frontend formats currency (Stroops / XLM) consistently using the helper `formatStroops` (located in `src/lib/format.ts`):
 
 - **Stroops definition:** 1 XLM = 10,000,000 stroops (Stellar's base unit).
-- **Sub-cent amounts:** If the value converts to less than `0.01 XLM` (but is non-zero), the formatting shows the amount in grouped raw `stroops` (e.g., `50,000 stroops`).
+- **Sub-cent amounts:** If the value converts to less than `0.01 XLM` in absolute magnitude (but is non-zero), the formatting shows the amount in grouped raw `stroops` (e.g., `50,000 stroops`).
 - **Standard amounts:** Standard amounts are formatted in grouped `XLM` with at least two and up to seven fraction digits so large values stay readable and fractional XLM is not hidden (e.g., `1.50 XLM`, `1,234.56789 XLM`).
 - **Zero amount:** A zero price formats to `0 XLM`.
+- **Locale-aware grouping:** Both XLM and raw-stroops representations support locale-aware thousands separators using cached `Intl.NumberFormat` instances. You can customize the locale by passing a `locale` option (e.g., `formatStroops(12345678900, { locale: "de-DE" })` results in `"1.234,56789 XLM"`).
+- **Raw-Stroops force toggle:** An optional second argument accepts a boolean or options object `{ forceRaw: boolean }` to bypass the XLM conversion and format the value as raw, grouped stroops (e.g., `formatStroops(10000000, true)` results in `"10,000,000 stroops"`). The zero case remains stable.
 
 ## Internationalization (groundwork)
 
@@ -340,8 +437,10 @@ i18n library is wired up yet and no rendered copy changes.
   ```
 
 - **Migrated so far:** [`src/components/Footer.tsx`](src/components/Footer.tsx),
-  the home page [`src/app/page.tsx`](src/app/page.tsx), and the about page
-  [`src/app/about/page.tsx`](src/app/about/page.tsx). Follow the same pattern when
+  the home page [`src/app/page.tsx`](src/app/page.tsx), the about page
+  [`src/app/about/page.tsx`](src/app/about/page.tsx), the docs page
+  [`src/app/docs/page.tsx`](src/app/docs/page.tsx), and the settings page
+  [`src/app/settings/page.tsx`](src/app/settings/page.tsx). Follow the same pattern when
   touching other surfaces — add the string to a namespace in `messages.ts`, then
   reference it from the component.
 - **Future i18n:** because the catalog is framework-agnostic, adopting
@@ -376,6 +475,13 @@ The root layout keeps the home route on the default `AgentPay` title and applies
 
 The `/about` page now exposes direct links to the dashboard surfaces described in its copy: `/services`, `/usage`, `/docs`, `/events`, `/webhooks`, `/api-keys`, and `/admin`.
 
+## Form validation
+
+Forms in the application (such as the New Service form `/services/new`) follow these validation and accessibility standards:
+- **Shared Primitive Components:** Reusable input fields use the `TextField` component (`src/components/TextField.tsx`) and standard `Button` components.
+- **Per-Field Validation Errors:** Local validation errors (e.g. invalid inputs or formatting issues verified via `src/lib/validateNumber.ts`) are passed directly to the `TextField`'s `error` prop. This flips `aria-invalid` to `true` and attaches the message using `aria-describedby` dynamically.
+- **Page-Level Alerts:** Generic API errors and backend validation failures (e.g. `invalid_request`) are rendered at the page level inside a dedicated alert region with `role="alert"` so assistive technologies announce them immediately.
+
 ## Services list paging
 
 The `/services` page now uses server-driven pagination with the shared `Spinner`, `EmptyState`, and `Pagination` components.
@@ -398,6 +504,50 @@ The `/agents` page lists every agent identity seen by the backend, paginated wit
 - Each row is a `<Link>` to `/agents/:agent` with the identifier fully `encodeURIComponent`-encoded, so agents with slashes or other special characters route correctly.
 - `Pagination` hides itself automatically when `pageCount ≤ 1`, so no pagination bar appears for a single-page result.
 - Backend errors are surfaced as a `role="alert"` paragraph; the pagination bar is suppressed while an error is shown.
+- The single-agent view (`/agents/:agent`) utilizes a semantic `<Breadcrumb>` trail for accessible orientation.
+
+### Agent detail page states
+
+The `/agents/:agent` detail page has four visual states:
+
+| State | Trigger | Renders |
+|---|---|---|
+| **Loading** | `GET /api/v1/agents/{agent}/usage` is in-flight | Centered `<Spinner>` with role="status", heading, breadcrumb, "Total unavailable" |
+| **Error** | Usage fetch rejects | `role="alert"` with the error message, heading, breadcrumb, "Total unavailable" |
+| **Empty** | Usage succeeds with zero items | `<EmptyState>` with title + description, breadcrumb, lifetime total or "Total unavailable" |
+| **Data** | Usage succeeds with items | Service list rows, breadcrumb, lifetime total (formatted via `formatRequests`) or "Total unavailable" when `GET /api/v1/agents/{agent}/total` fails |
+
+- The lifetime total line is always rendered. When the total request succeeds the formatted number is shown; when it fails the text reads "Total unavailable".
+- Both requests are aborted on unmount or rapid agent-switch. Stale responses from a previous agent id are ignored.
+
+## Service top-agents paging
+
+The `/services/:serviceId/agents` page requests top agents with `page` and
+`limit=25`, shows the shared `Spinner` while each page is loading, renders
+`EmptyState` when no agents are returned, and uses the shared `Pagination`
+component so the `aria-live` page indicator announces page changes. Agent rows
+link to `/agents/:agent` with the agent identifier encoded.
+
+## Client-side render cap
+
+Several list pages (`/events`, `/search`, `/services/:serviceId/agents`) apply a
+client-side render cap via the shared constant `MAX_RENDERED_ROWS = 100`
+([`src/lib/format.ts`](src/lib/format.ts)).  This is a **defence-in-depth**
+measure: if the backend ignores the `limit` parameter and returns a far larger
+payload, the browser will only ever create this many DOM nodes per list.
+
+When the local list exceeds the cap a truncation note is shown above the list
+(e.g. "Showing first 100 of 150 events.").  The cap is intentionally set above
+every page's expected backend limit (events: 100, search: 50, agents: 25 per
+page) so it never fires in normal operation.
+
+Behaviour is covered by the tests in each page's `.test.tsx`:
+
+| Page | Test file |
+|------|-----------|
+| `/events` | [`src/app/events/page.test.tsx`](src/app/events/page.test.tsx) |
+| `/search` | [`src/app/search/page.test.tsx`](src/app/search/page.test.tsx) |
+| `/services/:serviceId/agents` | [`src/app/services/\[serviceId\]/agents/page.test.tsx`](src/app/services/\[serviceId\]/agents/page.test.tsx) |
 
 ## Commands
 
@@ -428,3 +578,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, branch
 ## License
 
 MIT
+
+## Stats freshness
+
+The stats page polls `GET /api/v1/stats` every five seconds, shows when the
+latest successful response arrived, and keeps that timestamp visible if a
+later poll fails. Polling can be paused and resumed with the page control.

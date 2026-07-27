@@ -1,3 +1,7 @@
+/**
+ * @jest-environment node
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -23,11 +27,83 @@ function normalizeRouteSegment(seg: string): string {
 
 function toNextRouteFromAppFile(appFileAbsPath: string, appDirAbsPath: string): string {
   // Converts e.g. src/app/services/[serviceId]/edit/page.tsx -> /services/*/edit
-  const rel = path.relative(appDirAbsPath, appFileAbsPath).replace(/\\/g, "/");
+  const absFile = appFileAbsPath.replace(/\\/g, "/");
+  const absDir = appDirAbsPath.replace(/\\/g, "/");
+  const rel = absFile.replace(absDir, "").replace(/^\//, "");
   const withoutPage = rel.replace(/\/page\.tsx$/, "");
   const segments = withoutPage.split("/").filter(Boolean);
   const normalized = segments.map(normalizeRouteSegment);
   return "/" + normalized.join("/");
+}
+
+// ---------- bundle budget helpers (mirrors scripts/check-bundle-budgets.mjs) ----------
+
+interface RouteEntry {
+  route: string;
+  size: number;
+  firstLoadJS: number;
+}
+
+interface CheckResult extends RouteEntry {
+  budget: number | null;
+  status: "ok" | "warn" | "fail" | "unbudgeted";
+  pct: number | null;
+}
+
+function parseBuildOutput(stdout: string): RouteEntry[] {
+  const routes: RouteEntry[] = [];
+  const lines = stdout.split("\n");
+
+  let inRouteTable = false;
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+
+    if (trimmed.startsWith("Route (app)")) {
+      inRouteTable = true;
+      continue;
+    }
+
+    if (!inRouteTable) continue;
+    if (trimmed === "" || trimmed.startsWith("✓") || trimmed.startsWith("✗")) break;
+
+    const match = trimmed.match(
+      /^[┌├└╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬\s│]*\s*[○λ▲◆▶]?\s*(.+?)\s{2,}(\d+\.?\d*)\s*kB\s{2,}(\d+\.?\d*)\s*kB\s*$/
+    );
+
+    if (match) {
+      const route = match[1].trim();
+      const size = parseFloat(match[2]);
+      const firstLoadJS = parseFloat(match[3]);
+      if (route && !isNaN(size) && !isNaN(firstLoadJS)) {
+        routes.push({ route, size, firstLoadJS });
+      }
+    }
+  }
+
+  return routes;
+}
+
+function checkBudgets(
+  routes: RouteEntry[],
+  budgets: Record<string, number>,
+  warnAtPct: number
+): CheckResult[] {
+  return routes.map((r) => {
+    const budget = budgets[r.route];
+    if (budget === undefined) {
+      return { ...r, budget: null, status: "unbudgeted", pct: null };
+    }
+    const pct = (r.firstLoadJS / budget) * 100;
+    let status: CheckResult["status"];
+    if (pct > 100) {
+      status = "fail";
+    } else if (pct >= warnAtPct) {
+      status = "warn";
+    } else {
+      status = "ok";
+    }
+    return { ...r, budget, status, pct: Math.round(pct * 10) / 10 };
+  });
 }
 
 describe("README docs consistency checks", () => {
@@ -170,5 +246,21 @@ describe("README docs consistency checks", () => {
     }
 
   });
-});
+  test("Dependabot is configured for npm and GitHub Actions updates", () => {
+    const dependabotPath = path.join(process.cwd(), ".github", "dependabot.yml");
+    const dependabot = fs.readFileSync(dependabotPath, "utf8");
+    const contributing = fs.readFileSync(path.join(process.cwd(), "CONTRIBUTING.md"), "utf8");
 
+    expect(dependabot).toContain('version: 2');
+    expect(dependabot).toContain('package-ecosystem: "npm"');
+    expect(dependabot).toContain('package-ecosystem: "github-actions"');
+    expect(dependabot).toContain('interval: "weekly"');
+    expect(dependabot).toContain('npm-minor-and-patch');
+    expect(dependabot).toContain('actions-minor-and-patch');
+    expect(dependabot).toContain('open-pull-requests-limit: 5');
+
+    expect(contributing).toContain("## Dependency Update Review");
+    expect(contributing).toContain("Dependabot pull requests");
+    expect(contributing).toContain("major-version updates should remain separate");
+  });
+});

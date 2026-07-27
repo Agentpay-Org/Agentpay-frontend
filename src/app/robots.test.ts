@@ -29,4 +29,40 @@ describe("robots metadata route", () => {
 
     expect(robots().sitemap).toBe("http://localhost:3000/sitemap.xml");
   });
+
+  it("allows crawling from root path", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const result = robots();
+    const rules = Array.isArray(result.rules) ? result.rules[0] : result.rules;
+    expect(rules?.allow).toBe("/");
+  });
+
+  it("applies rules to all user agents", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const result = robots();
+    const rules = Array.isArray(result.rules) ? result.rules[0] : result.rules;
+    expect(rules?.userAgent).toBe("*");
+  });
+
+  it("disallow list contains exactly the four operator surfaces", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com";
+
+    const result = robots();
+    const rules = Array.isArray(result.rules) ? result.rules[0] : result.rules;
+    expect(rules?.disallow).toEqual(["/admin", "/api-keys", "/webhooks", "/settings"]);
+  });
+
+  it("sitemap URL uses the configured origin", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://custom.agentpay.example";
+
+    expect(robots().sitemap).toBe("https://custom.agentpay.example/sitemap.xml");
+  });
+
+  it("strips trailing slash from configured origin in sitemap URL", () => {
+    process.env.NEXT_PUBLIC_AGENTPAY_SITE_ORIGIN = "https://dashboard.example.com/";
+
+    expect(robots().sitemap).toBe("https://dashboard.example.com/sitemap.xml");
+  });
 });

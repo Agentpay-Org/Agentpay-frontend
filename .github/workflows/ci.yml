@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
           cache: "npm"
 
       - name: Install dependencies
@@ -30,6 +30,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Check bundle budgets
+        id: bundle-check
+        run: node scripts/check-bundle-budgets.mjs
+        continue-on-error: true
 
       - name: Run tests with coverage
         run: npx jest --coverage
@@ -42,32 +47,85 @@ jobs:
           path: coverage/
           retention-days: 7
 
-      - name: Post coverage summary as PR comment
+      - name: Upload bundle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-report
+          path: bundle-report.json
+          retention-days: 7
+
+      - name: Post coverage and bundle summary as PR comment
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const coveragePath = 'coverage/coverage-summary.json';
 
-            if (!fs.existsSync(coveragePath)) {
-              console.log('Coverage summary file not found');
-              return;
+            // --- Coverage section ---
+            const coveragePath = 'coverage/coverage-summary.json';
+            let coverageLines = ['## 📊 Coverage Report', '', 'No coverage data found.'];
+            if (fs.existsSync(coveragePath)) {
+              const summary = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
+              const t = summary.total;
+              coverageLines = [
+                '## 📊 Coverage Report',
+                '',
+                '| Metric | Coverage |',
+                '|--------|----------|',
+                `| Statements | ${t.statements.pct.toFixed(1)}% |`,
+                `| Branches | ${t.branches.pct.toFixed(1)}% |`,
+                `| Functions | ${t.functions.pct.toFixed(1)}% |`,
+                `| Lines | ${t.lines.pct.toFixed(1)}% |`,
+              ];
             }
 
-            const summary = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
-            const t = summary.total;
+            // --- Bundle section ---
+            const bundlePath = 'bundle-report.json';
+            let bundleLines = [];
+            if (fs.existsSync(bundlePath)) {
+              const report = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+              const s = report.summary;
+              let verdict;
+              if (!report.pass) {
+                verdict = '❌ **Some routes exceed their budget**';
+              } else if (report.warn) {
+                verdict = '⚠️ **All routes within budget, but some are near the limit**';
+              } else {
+                verdict = '✅ **All routes within budget**';
+              }
 
-            const body = [
-              '## 📊 Coverage Report',
-              '',
-              '| Metric | Coverage |',
-              '|--------|----------|',
-              `| Statements | ${t.statements.pct.toFixed(1)}% |`,
-              `| Branches | ${t.branches.pct.toFixed(1)}% |`,
-              `| Functions | ${t.functions.pct.toFixed(1)}% |`,
-              `| Lines | ${t.lines.pct.toFixed(1)}% |`,
-            ].join('\n');
+              const rows = report.routes.map(r => {
+                const budgetStr = r.budget !== null ? `${r.budget} kB` : '—';
+                const actualStr = `${r.firstLoadJS} kB`;
+                const deltaStr = r.budget !== null
+                  ? `${r.firstLoadJS - r.budget >= 0 ? '+' : ''}${(r.firstLoadJS - r.budget).toFixed(1)} kB`
+                  : '—';
+                let icon;
+                if (r.status === 'fail') icon = '❌';
+                else if (r.status === 'warn') icon = '⚠️';
+                else if (r.status === 'unbudgeted') icon = '❓';
+                else icon = '✅';
+                return `| ${icon} | \`${r.route}\` | ${budgetStr} | ${actualStr} | ${deltaStr} |`;
+              });
+
+              bundleLines = [
+                '',
+                '## 📦 Bundle Budget Report',
+                '',
+                `${verdict}`,
+                '',
+                '| Status | Route | Budget | Actual | Δ |',
+                '|--------|-------|--------|--------|---|',
+                ...rows,
+                '',
+                `**Summary:** ${s.ok} ✅ / ${s.warn} ⚠️ / ${s.fail} ❌ / ${s.unbudgeted} ❓ unbudgeted`,
+                '',
+                '> Budget file: `bundle-budgets.json`. Raise a budget by editing it in a dedicated PR.',
+              ];
+            }
+
+            const body = [...coverageLines, ...bundleLines].join('\n');
 
             try {
               await github.rest.issues.createComment({
@@ -77,5 +135,5 @@ jobs:
                 body,
               });
             } catch (error) {
-              console.warn('Could not post coverage comment (expected from forks):', error.message);
+              console.warn('Could not post comment (expected from forks):', error.message);
             }

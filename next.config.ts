@@ -15,10 +15,13 @@ const nextConfig: NextConfig = {
       apiBase,
       isDev: process.env.NODE_ENV !== "production",
     });
+    // CSP is handled by src/proxy.ts at request time so a per-request nonce
+    // can be injected; we exclude it from the static config headers.
+    const { "Content-Security-Policy": _csp, ...headersWithoutCsp } = headers;
     return [
       {
         source: "/:path*",
-        headers: Object.entries(headers).map(([key, value]) => ({
+        headers: Object.entries(headersWithoutCsp).map(([key, value]) => ({
           key,
           value,
         })),

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
-import { ToastProvider, useToast } from "../ToastProvider";
+import { ToastLevel, ToastProvider, useToast } from "../ToastProvider";
 
 // --------------- test helpers ---------------
 
@@ -11,7 +11,7 @@ function ToastPusher({
   testId,
 }: {
   message: string;
-  level?: "info" | "error";
+  level?: ToastLevel;
   /** custom test-id for the button so multiple pushers can coexist */
   testId?: string;
 }) {
@@ -27,7 +27,7 @@ function ToastPusher({
 function MultiPusher({
   messages,
 }: {
-  messages: { text: string; level?: "info" | "error" }[];
+  messages: { text: string; level?: ToastLevel }[];
 }) {
   const { push } = useToast();
   return (
@@ -258,6 +258,93 @@ describe("ToastProvider", () => {
 
       const toast = screen.getByRole("status");
       expect(toast).toHaveTextContent("Default level");
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 3b. Dynamic aria-live mapping (a11y)
+  // ------------------------------------------------------------------
+  describe("dynamic aria-live mapping", () => {
+    it("renders an error toast with aria-live='assertive'", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Connection failed" level="error" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const toast = screen.getByRole("alert");
+      expect(toast).toHaveAttribute("aria-live", "assertive");
+    });
+
+    it("renders an info toast with aria-live='polite'", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="System update available" level="info" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const toast = screen.getByRole("status");
+      expect(toast).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("renders a success toast with aria-live='polite'", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Payment processed successfully" level="success" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const toast = screen.getByRole("status");
+      expect(toast).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("renders a warning toast with aria-live='polite'", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Storage space low" level="warning" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const toast = screen.getByRole("status");
+      expect(toast).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("maintains separate aria-live attributes for stacked toasts with mixed severities", () => {
+      render(
+        <ToastProvider>
+          <MultiPusher
+            messages={[
+              { text: "Info item", level: "info" },
+              { text: "Success item", level: "success" },
+              { text: "Warning item", level: "warning" },
+              { text: "Error item", level: "error" },
+            ]}
+          />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("multi-push"));
+
+      const errorToast = screen.getByRole("alert");
+      expect(errorToast).toHaveTextContent("Error item");
+      expect(errorToast).toHaveAttribute("aria-live", "assertive");
+
+      const politeToasts = screen.getAllByRole("status");
+      expect(politeToasts).toHaveLength(3);
+      expect(politeToasts[0]).toHaveTextContent("Info item");
+      expect(politeToasts[0]).toHaveAttribute("aria-live", "polite");
+      expect(politeToasts[1]).toHaveTextContent("Success item");
+      expect(politeToasts[1]).toHaveAttribute("aria-live", "polite");
+      expect(politeToasts[2]).toHaveTextContent("Warning item");
+      expect(politeToasts[2]).toHaveAttribute("aria-live", "polite");
     });
   });
 

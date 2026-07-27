@@ -4,6 +4,24 @@ import { messages, type Messages } from "../messages";
 import { Footer } from "@/components/Footer";
 import Home from "@/app/page";
 import AboutPage from "@/app/about/page";
+import DocsPage from "@/app/docs/page";
+import SettingsPage from "@/app/settings/page";
+
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation(() => ({
+      matches: false,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+});
 
 /**
  * Recursively collect every leaf value in the catalog together with its
@@ -112,6 +130,36 @@ describe("migrated surfaces render the catalog copy unchanged", () => {
     expect(screen.getByText(messages.about.surfacesIntro)).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: messages.about.navLabel })
+    ).toBeInTheDocument();
+  });
+
+  it("DocsPage renders heading and prose from the catalog", () => {
+    render(createElement(DocsPage));
+
+    expect(
+      screen.getByRole("heading", { name: messages.docs.heading })
+    ).toBeInTheDocument();
+    
+    // Test that the prefix, open api, and suffix are rendered
+    expect(screen.getByText(messages.docs.introOpenApi)).toBeInTheDocument();
+    
+    // We can query the full link name as well
+    expect(
+      screen.getByRole("link", { name: messages.docs.referenceLink })
+    ).toBeInTheDocument();
+  });
+
+  it("SettingsPage renders headings and prose from the catalog", () => {
+    render(createElement(SettingsPage));
+
+    expect(
+      screen.getByRole("heading", { name: messages.settings.heading, level: 1 })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: messages.settings.appearance.heading, level: 2 })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(messages.settings.appearance.description)
     ).toBeInTheDocument();
   });
 });

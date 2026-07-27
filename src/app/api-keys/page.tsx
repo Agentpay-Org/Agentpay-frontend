@@ -1,35 +1,76 @@
 "use client";
 
+import { PageShell } from "@/components/PageShell";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
+import { DataTable, type DataTableColumn } from "@/components/DataTable";
+import { EmptyState } from "@/components/EmptyState";
+import { TimeAgo } from "@/components/TimeAgo";
+import { safeFormatTimestamp } from "@/lib/format";
 
-type KeyItem = { prefix: string; label: string; createdAt: number };
+type KeyItem = {
+  prefix: string;
+  label: string;
+  createdAt?: number | string | null;
+};
+
+const columns: DataTableColumn<KeyItem>[] = [
+  {
+    key: "label",
+    header: "Label",
+    sortable: true,
+    sortAccessor: (r) => r.label.toLowerCase(),
+    render: (r) => r.label,
+  },
+  {
+    key: "prefix",
+    header: "Prefix",
+    sortable: true,
+    sortAccessor: (r) => r.prefix,
+    render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
+  },
+  {
+    key: "createdAt",
+    header: "Created",
+    sortable: true,
+    sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
+    render: (r) => <TimeAgo ts={toTimestampMs(r.createdAt) ?? 0} />,
+  },
+];
+
+function toTimestampMs(value: KeyItem["createdAt"]): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric < 1_000_000_000_000 ? numeric * 1_000 : numeric;
+}
 
 export default function ApiKeysPage() {
-  const [items, setItems] = useState(null as KeyItem[] | null);
+  const [items, setItems] = useState<KeyItem[] | null>(null);
   const [label, setLabel] = useState("");
-  const [created, setCreated] = useState(null as string | null);
+  const [created, setCreated] = useState<string | null>(null);
   const [showFull, setShowFull] = useState(false);
-  const [error, setError] = useState(null as string | null);
-  const [pendingRevoke, setPendingRevoke] = useState(null as KeyItem | null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
 
   const load = () =>
-    apiGet("/api/v1/api-keys")
-      .then((b) => setItems((b as { items: KeyItem[] }).items))
+    apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
+      .then((b) => setItems(b.items))
       .catch((e: Error) => setError(e.message));
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      const res = await apiPost("/api/v1/api-keys", { label });
-      setCreated((res as { key: string }).key);
+      const res = await apiPost<{ key: string }>("/api/v1/api-keys", { label });
+      setCreated(res.key);
       setShowFull(false);
       setLabel("");
       await load();
@@ -54,15 +95,14 @@ export default function ApiKeysPage() {
   };
 
   const maskedKey = created
-    ? created.slice(0, created.indexOf("_") + 1) + "****"
+    ? created.slice(0, Math.max(created.indexOf("_"), 0) + 1) + "****"
     : "";
 
+  const revealToggleLabel = showFull ? "Hide full API key" : "Show full API key";
+  const revealStateMessage = showFull ? "API key is visible" : "API key is hidden";
+
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <ConfirmDialog
         open={pendingRevoke !== null}
         title="Revoke API key?"
@@ -96,52 +136,50 @@ export default function ApiKeysPage() {
       </form>
 
       {created && (
-        <div role="status" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
+        <div aria-label="Created API key" className="flex flex-col gap-3 rounded border border-emerald-300 bg-emerald-50 p-4 text-sm">
           <p className="font-medium">New key - copy now, shown only once.</p>
           <div className="flex items-center gap-2 font-mono text-sm">
-            <code className="flex-1 break-all">
+            <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
             <button
               type="button"
+              aria-controls="created-api-key"
+              aria-label={revealToggleLabel}
               aria-pressed={showFull}
               onClick={() => setShowFull((v) => !v)}
             >
-              {showFull ? "Hide" : "Reveal"}
+              {showFull ? "Hide" : "Show"}
             </button>
-            <CopyButton value={created} label="Copy" />
           </div>
+          <p aria-live="polite" aria-atomic="true" className="sr-only">
+            {revealStateMessage}
+          </p>
           <button type="button" onClick={onDismiss}>
             Done - I have saved it
           </button>
         </div>
       )}
 
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
+      <AlertError message={error} />
+
+      {items && items.length === 0 && (
+        <div role="status">
+          <EmptyState
+            title="No API keys yet"
+            description="Create an API key to authenticate requests from your agents and services."
+          />
+        </div>
       )}
 
-      {items && (
-        <ul className="divide-y divide-zinc-200">
-          {items.map((k) => (
-            <li key={k.prefix} className="flex items-center justify-between gap-2 py-3">
-              <div>
-                <p className="text-sm font-medium">{k.label}</p>
-                <p className="font-mono text-xs text-zinc-500">{k.prefix}...</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPendingRevoke(k)}
-                className="rounded border border-zinc-300 px-3 py-1 text-xs"
-              >
-                Revoke
-              </button>
-            </li>
-          ))}
-        </ul>
+      {items && items.length > 0 && (
+        <DataTable
+          caption="API keys"
+          columns={columns}
+          data={items}
+          getRowKey={(k) => k.prefix}
+        />
       )}
-    </main>
+    </PageShell>
   );
 }

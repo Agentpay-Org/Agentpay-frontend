@@ -41,6 +41,21 @@ describe("Footer", () => {
     }
   });
 
+  it("validates each internal link target resolves to an existing route under src/app", () => {
+    render(<Footer />);
+    const validRoutes = new Set(["/about", "/docs", "/changelog", "/stats"]);
+
+    const internalLinks = screen.getAllByRole("link").filter((link) => {
+      const href = link.getAttribute("href");
+      return href?.startsWith("/") && !href.startsWith("http");
+    });
+
+    expect(internalLinks.length).toBeGreaterThan(0);
+    for (const link of internalLinks) {
+      expect(validRoutes).toContain(link.getAttribute("href"));
+    }
+  });
+
   it("renders the external Discord link safely", () => {
     render(<Footer />);
     const discordLink = screen.getByRole("link", { name: "Discord" });

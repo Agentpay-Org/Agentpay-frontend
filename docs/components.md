@@ -251,11 +251,37 @@ options as an ARIA button group.
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `variant` | `"ok" \| "warn" \| "down"` | yes | Maps to Operational, Degraded, or Down text. |
+| `label` | `ReactNode` | no | Overrides the default per-variant text. An omitted, `null`, or empty-string value falls back to the variant default, so a label is always present. |
 
-The color dot is decorative; the visible label carries the status meaning.
+The color dot is decorative (`aria-hidden`); the visible label carries the
+status meaning. Use `label` to reuse the same dot affordance for states outside
+the three defaults — for example `"Paused"` on a `warn` dot — without rendering a
+separate element.
 
 ```tsx
 <StatusDot variant="warn" />
+<StatusDot variant="warn" label="Paused" />
+```
+
+### `ErrorMessage`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | `string` | yes | Primary error summary text. |
+| `detail` | `string \| null` | no | Secondary detail with more context about the failure. |
+| `requestId` | `string` | no | Backend request identifier shown as a monospace badge for debugging. |
+| `onRetry` | `() => void` | no | When provided, renders a "Try again" button that calls this callback. |
+
+The component is wrapped with `React.memo` so it does not re-render (and re-announce via `role="alert"`) on unrelated parent updates.
+
+```tsx
+<ErrorMessage title="Failed to load services" detail={error} />
+<ErrorMessage
+  title="Recording failed"
+  detail="Backend rejected the request."
+  requestId="req-abc-123"
+  onRetry={handleRetry}
+/>
 ```
 
 ### `Spinner`
@@ -300,6 +326,66 @@ instead of only inside the tooltip.
 ```
 
 ## Data Display
+
+### `DataTable`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `caption` | `ReactNode` | yes | Rendered as a visible `<caption>` above the table. Screen readers announce it as the table's accessible name. |
+| `columns` | `DataTableColumn<T>[]` | yes | See column shape below. |
+| `data` | `T[]` | yes | Rows to render, in the order they should appear before any sorting. |
+| `getRowKey` | `(row: T, index: number) => string \| number` | yes | Stable React key per row. |
+| `className` | `string` | no | Extra classes on the horizontal-scroll wrapper `div`. |
+| `captionClassName` | `string` | no | Extra classes on the `<caption>`. |
+| `defaultSortKey` | `string` | no | Column `key` sorted by on first render. |
+| `defaultSortDirection` | `"ascending" \| "descending"` | no | Defaults to `"ascending"`. |
+
+Each entry in `columns` is:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `key` | `string` | yes | Unique column id; doubles as the sort key. |
+| `header` | `ReactNode` | yes | Header cell content. |
+| `render` | `(row: T, index: number) => ReactNode` | yes | Cell content for a row. |
+| `rowHeader` | `boolean` | no | Renders the cell as `<th scope="row">` instead of `<td>`. Use on the column that identifies the row (e.g. a name or id). |
+| `align` | `"left" \| "center" \| "right"` | no | Text alignment for both the header and body cells. Defaults to `"left"`. |
+| `sortable` | `true` | no | When set, `sortAccessor` becomes required and the header renders as a button. |
+| `sortAccessor` | `(row: T) => string \| number` | when `sortable` | Comparable value used to order rows. Numbers compare numerically; everything else compares with `localeCompare`. |
+| `headerClassName` / `cellClassName` | `string` | no | Extra classes appended to the header or body cell. |
+
+Every header cell gets `scope="col"`. Sortable columns toggle between ascending
+and descending on click and set `aria-sort` (`"ascending"`, `"descending"`, or
+`"none"` when another sortable column is active) on the active `<th>`; the sort
+is a stable client-side sort that never mutates `data`. Non-sortable columns
+render as plain header text with no `aria-sort` attribute.
+
+```tsx
+<DataTable
+  caption="API keys"
+  data={items}
+  getRowKey={(item) => item.prefix}
+  columns={[
+    {
+      key: "label",
+      header: "Label",
+      rowHeader: true,
+      sortable: true,
+      sortAccessor: (item) => item.label,
+      render: (item) => item.label,
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      sortable: true,
+      sortAccessor: (item) => item.createdAtMs ?? Number.NEGATIVE_INFINITY,
+      render: (item) => <TimeAgo ts={item.createdAtMs} />,
+    },
+  ]}
+/>
+```
+
+Used by the API keys page (`src/app/api-keys/page.tsx`) in place of a hand-rolled
+list; prefer it over new bespoke `<ul>`/`<table>` markup for tabular data.
 
 ### `KeyValueGrid`
 
@@ -348,54 +434,49 @@ It refreshes every 30 seconds.
 <TimeAgo ts={event.createdAt} />
 ```
 
-## Pages
+## Formatting Helpers
 
-### `SettingsPage`
+Formatting helpers live in `src/lib/format.ts` and are plain functions, not
+components. The ones relevant to identifier display are documented here because
+they pair with the display patterns above.
 
-Route: `/settings`
+### `truncateMiddle`
 
-| Prop | Type | Required | Notes |
+| Param | Type | Required | Notes |
 | --- | --- | --- | --- |
-| none | - | - | Server component. Renders the Appearance section with `ThemeToggle`. |
+| `value` | `string` | yes | The identifier to truncate. |
+| `head` | `number` | no | Leading characters kept. Defaults to `TRUNCATE_HEAD_DEFAULT` (8). |
+| `tail` | `number` | no | Trailing characters kept. Defaults to `TRUNCATE_TAIL_DEFAULT` (6). |
 
-`SettingsPage` is a Next.js page component at `src/app/settings/page.tsx`.
-It exports a static `metadata` object (`{ title: "Settings — AgentPay" }`)
-and a default `SettingsPage` function component. The page wraps its content
-in `PageShell` with `maxWidth="2xl"` and `gap="8"`.
+Collapses the middle of a long identifier into a single ellipsis
+(`GABCDEFG…QRSTUV`) while preserving both ends. Agent and service ids often
+share a common prefix and only differ near the edges, so keeping the tail
+visible is what makes two truncated ids distinguishable — unlike CSS
+`text-overflow: ellipsis`, which hides it.
 
-**Composition:**
+Behaviour to rely on:
 
-- `PageShell` — accessible `<main>` wrapper.
-- `ThemeToggle` — light / dark / system selector that persists via
-  `localStorage` (`agentpay.theme` key). See the `ThemeToggle` entry above
-  and `docs/theming.md` for the persistence layer.
+- Values already within the budget (`head + tail + 1` characters, the `1`
+  being the ellipsis) are returned unchanged, so short ids never gain a
+  marker.
+- Counting is code-point aware; surrogate pairs are never split.
+- Negative or fractional `head` / `tail` values are clamped to non-negative
+  integers; non-finite values fall back to the defaults.
 
-**Minimal usage (route-level, no props):**
+When rendering the truncated form, always expose the full value through
+`title` (hover) and an accessible label such as `aria-label` (assistive
+technology), and keep `font-mono` so ids stay scannable:
 
 ```tsx
-// src/app/settings/page.tsx
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { PageShell } from "@/components/PageShell";
+import { truncateMiddle } from "@/lib/format";
 
-export const metadata = { title: "Settings — AgentPay" };
-
-export default function SettingsPage() {
-  return (
-    <PageShell maxWidth="2xl" gap="8">
-      <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-medium">Appearance</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Choose a colour scheme. System follows your OS preference.
-        </p>
-        <ThemeToggle />
-      </section>
-    </PageShell>
-  );
-}
+<span className="font-mono" title={serviceId} aria-label={serviceId}>
+  {truncateMiddle(serviceId)}
+</span>
 ```
 
-**Extending:** To add new settings sections (e.g. notifications, API keys),
-append additional `<section>` blocks inside the `PageShell`. Each section
-should follow the same pattern: an `<h2>` heading, a short description, and
-the relevant control component.
+Used by the agent detail page (`src/app/agents/[agent]/page.tsx`) for the
+heading, breadcrumb, and per-service rows, and by the services list
+(`src/app/services/page.tsx`) for each service id. Pair with `CopyButton`
+when users need the full value on the clipboard — pass the untruncated id as
+its `value`.

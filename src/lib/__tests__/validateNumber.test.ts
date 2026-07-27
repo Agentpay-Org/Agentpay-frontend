@@ -1,4 +1,13 @@
-import { parseNonNegativeInt, parsePositiveInt } from "../validateNumber";
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+  type ParseResult,
+} from "../validateNumber";
+
+// Type-level assertion: ParseResult is the correct discriminated union shape.
+// If the type changes, the compile step will catch it here.
+const _typeCheck: ParseResult = { ok: true, value: 0 };
+void _typeCheck;
 
 describe("validateNumber", () => {
   describe("parseNonNegativeInt", () => {
@@ -80,6 +89,20 @@ describe("validateNumber", () => {
       expect(parseNonNegativeInt("1e-2")).toEqual(expectedError);
       expect(parseNonNegativeInt("-1e2")).toEqual(expectedError);
     });
+
+    it("documents coercion behaviour: hex, binary, and octal literals are accepted by Number()", () => {
+      // Number("0xff") === 255, Number("0b101") === 5 — both are non-negative integers.
+      // Form inputs typed by users will not normally contain these, but the contract
+      // is defined by Number() coercion so callers should be aware.
+      expect(parseNonNegativeInt("0xff")).toEqual({ ok: true, value: 255 });
+      expect(parseNonNegativeInt("0b101")).toEqual({ ok: true, value: 5 });
+    });
+
+    it("accepts strings with a leading plus sign via Number() coercion", () => {
+      // Number("+1") === 1, Number("+0") === 0 — both are valid non-negative integers.
+      expect(parseNonNegativeInt("+1")).toEqual({ ok: true, value: 1 });
+      expect(parseNonNegativeInt("+0")).toEqual({ ok: true, value: 0 });
+    });
   });
 
   describe("parsePositiveInt", () => {
@@ -140,6 +163,24 @@ describe("validateNumber", () => {
 
     it("accepts scientific notation only when it becomes a positive integer", () => {
       expect(parsePositiveInt("1e1")).toEqual({ ok: true, value: 10 });
+    });
+
+    it("documents coercion behaviour: hex and binary literals are accepted when they evaluate to a positive integer", () => {
+      // Number("0xff") === 255, Number("0b101") === 5 — both are positive integers.
+      expect(parsePositiveInt("0xff")).toEqual({ ok: true, value: 255 });
+      expect(parsePositiveInt("0b101")).toEqual({ ok: true, value: 5 });
+    });
+
+    it("accepts strings with a leading plus sign via Number() coercion", () => {
+      expect(parsePositiveInt("+1")).toEqual({ ok: true, value: 1 });
+    });
+
+    it("rejects leading-zero strings that evaluate to zero", () => {
+      // "00000" coerces to 0, which is not a positive integer
+      expect(parsePositiveInt("00000")).toEqual({
+        ok: false,
+        message: "requests must be a positive integer",
+      });
     });
   });
 });

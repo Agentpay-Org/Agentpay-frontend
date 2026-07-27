@@ -20,8 +20,8 @@ const DEFAULT_POSITIVE_MESSAGE = "requests must be a positive integer";
 /**
  * Parses a string as a non-negative integer.
  *
- * Accepted examples: "0", "1", "42", "001"
- * Rejected examples: "", "-1", "-0", "1.5", "1e2" (non-integer), "-0.1"
+ * Accepted examples: "0", "1", "42", "001", "1e2" (evaluates to integer 100)
+ * Rejected examples: "", "-1", "-0", "1.5", "1e-2" (non-integer), "-0.1"
  */
 export function parseNonNegativeInt(input: string): ParseResult {
   if (input.trim() === "") {

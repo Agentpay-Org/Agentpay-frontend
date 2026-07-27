@@ -62,14 +62,16 @@ export function parsePositiveInt(input: string): ParseResult;
 #### Invariants & Rules
 
 - **`parseNonNegativeInt(input: string)`**:
-  - Accepts non-negative integers ($\ge 0$). E.g., `"0"`, `"1"`, `"42"`, `"001"`, `"1e2"`.
-  - Rejects empty strings, negative numbers, `-0`, floating-point decimals, non-numeric strings, and non-integer scientific notation (e.g., `"1e-2"`).
+  - Accepts non-negative integers ($\ge 0$). E.g., `"0"`, `"1"`, `"42"`, `"001"`, `"1e2"` (evaluates to 100).
+  - Also accepts via `Number()` coercion: trailing `.0` decimals (`"5.000"` → 5), leading `+` (`"+1"` → 1), hex (`"0xff"` → 255), and binary (`"0b101"` → 5).
+  - Rejects empty strings, negative numbers, `-0`, true floating-point decimals (e.g., `"1.5"`), non-numeric strings, and non-integer scientific notation (e.g., `"1e-2"`).
   - Default error message: `"Price must be a non-negative integer."`
 
 - **`parsePositiveInt(input: string)`**:
-  - Accepts positive integers ($\ge 1$). E.g., `"1"`, `"42"`, `"001"`, `"1e1"`.
-  - Rejects empty strings, `"0"`, negative numbers, floating-point decimals, non-numeric strings, and non-integer scientific notation.
-  - Default error message: `"requests must be a positive integer"`
+  - Accepts positive integers ($\ge 1$). E.g., `"1"`, `"42"`, `"001"`, `"1e1"` (evaluates to 10).
+  - Applies the same `Number()` coercion rules as `parseNonNegativeInt`.
+  - Rejects empty strings, `"0"` (including `"00000"`), negative numbers, floating-point decimals, non-numeric strings, and non-integer scientific notation.
+  - Default error message: `"requests must be a positive integer"` *(note: no trailing period — see §3 for the convention)*
 
 ---
 
@@ -80,6 +82,7 @@ Consistent error messaging helps operators quickly locate and fix invalid inputs
 ### Capitalization and Punctuation
 - Use **sentence case** for error strings (`"Agent is required."`, `"Price must be a non-negative integer."`).
 - Conclude complete sentences with a period.
+- **Known exception**: `parsePositiveInt` currently returns `"requests must be a positive integer"` without a trailing period. When consuming this message in a form, display it as-is. New validators should follow the period convention.
 
 ### Parameterized Field Labels
 - Functions like `validateIdentifier` take an optional `label` string (e.g., `"Agent"`, `"Service ID"`). Always pass the user-facing label name matching the `TextField` label text so error messages are unambiguous:

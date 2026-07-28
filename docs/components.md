@@ -235,10 +235,15 @@ secrets, private keys, seed phrases, or passwords.
 | `loading` | `boolean` | no | Shows a `Spinner` in place of the nav controls, regardless of `pageCount`. Defaults to `false`. |
 | `error` | `string \| null` | no | Shows an `ErrorMessage` in place of the nav controls, regardless of `pageCount`. Takes precedence over `loading`. Defaults to `null`. |
 | `onRetry` | `() => void` | no | Retry handler passed through to the error state's "Try again" button. Only rendered when both `error` and `onRetry` are set. |
+| `showFirstLast` | `boolean` | no | When `true`, renders First and Last jump buttons that use the same disabled-state styling as Previous/Next. Defaults to `false`. |
+| `totalItems` | `number` | no | Total result count. Combined with `pageSize` to show and announce a `"showing X-Y of Z"` summary. |
+| `pageSize` | `number` | no | Items per page. Required together with `totalItems` for the result-count summary. |
 
 Render precedence is **error → loading → hidden (`pageCount <= 1`) → nav**.
 Announces page changes to assistive tech via a polite, debounced `aria-live`
-region (`"Page N of pageCount"`). The announcement is debounced 300ms so
+region (`"Page N of pageCount"`). When both `totalItems` and `pageSize` are
+set, the announcement also includes `"showing X-Y of Z"` (with `Y` clamped to
+`totalItems` on the last page). The announcement is debounced 300ms so
 rapid successive page changes collapse into a single announcement for the
 page the user settles on, and it stays empty on first mount.
 
@@ -248,6 +253,15 @@ examples (including loading/error), see the
 
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+
+<Pagination
+  page={page}
+  pageCount={pageCount}
+  onChange={setPage}
+  showFirstLast
+  totalItems={totalItems}
+  pageSize={25}
+/>
 ```
 
 ### `ThemeToggle`

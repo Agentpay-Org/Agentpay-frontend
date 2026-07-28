@@ -73,6 +73,30 @@ describe("ToastProvider", () => {
       expect(live).toBeInTheDocument();
     });
 
+    it("exposes the stack as a named 'Notifications' region", () => {
+      render(
+        <ToastProvider>
+          <span>child</span>
+        </ToastProvider>,
+      );
+
+      const region = screen.getByRole("region", { name: "Notifications" });
+      expect(region).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("keeps the Notifications region present and reachable while toasts are on screen", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Saved" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const region = screen.getByRole("region", { name: "Notifications" });
+      expect(region).toContainElement(screen.getByRole("status"));
+    });
+
     it("does NOT set aria-atomic on the container (moved per-item)", () => {
       // aria-atomic on the whole stack makes every new toast re-announce the
       // entire list. The atomic semantics now live on each toast instead.

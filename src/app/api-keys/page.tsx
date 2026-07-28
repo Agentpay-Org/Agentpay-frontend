@@ -1,7 +1,7 @@
 "use client";
 
 import { PageShell } from "@/components/PageShell";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -9,7 +9,6 @@ import { CopyButton } from "@/components/CopyButton";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { TimeAgo } from "@/components/TimeAgo";
-import { safeFormatTimestamp } from "@/lib/format";
 
 type KeyItem = {
   prefix: string;
@@ -17,29 +16,6 @@ type KeyItem = {
   createdAt?: number | string | null;
 };
 
-const columns: DataTableColumn<KeyItem>[] = [
-  {
-    key: "label",
-    header: "Label",
-    sortable: true,
-    sortAccessor: (r) => r.label.toLowerCase(),
-    render: (r) => r.label,
-  },
-  {
-    key: "prefix",
-    header: "Prefix",
-    sortable: true,
-    sortAccessor: (r) => r.prefix,
-    render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
-  },
-  {
-    key: "createdAt",
-    header: "Created",
-    sortable: true,
-    sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
-    render: (r) => <TimeAgo ts={toTimestampMs(r.createdAt) ?? 0} />,
-  },
-];
 
 function toTimestampMs(value: KeyItem["createdAt"]): number | null {
   if (value === null || value === undefined) return null;
@@ -55,6 +31,53 @@ export default function ApiKeysPage() {
   const [showFull, setShowFull] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
+  
+  const columns = useMemo<DataTableColumn<KeyItem>[]>(
+    () => [
+      {
+        key: "label",
+        header: "Label",
+        sortable: true,
+        sortAccessor: (r) => r.label.toLowerCase(),
+        render: (r) => r.label,
+      },
+      {
+        key: "prefix",
+        header: "Prefix",
+        sortable: true,
+        sortAccessor: (r) => r.prefix,
+        render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
+      },
+      {
+        key: "createdAt",
+        header: "Created",
+        sortable: true,
+        sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
+        render: (r) => {
+          const ms = toTimestampMs(r.createdAt);
+          return ms !== null ? <TimeAgo ts={ms} /> : <span title="—">—</span>;
+        },
+      },
+      {
+        key: "actions",
+        header: "",
+        render: (r) => (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setPendingRevoke(r)}
+              className="rounded border border-zinc-300 px-3 py-1 text-xs hover:border-rose-500 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
+            >
+              Revoke
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const tableData = useMemo(() => items ?? [], [items]);
 
   const load = () =>
     apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
@@ -142,6 +165,7 @@ export default function ApiKeysPage() {
             <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
+            <CopyButton value={created} />
             <button
               type="button"
               aria-controls="created-api-key"
@@ -176,7 +200,7 @@ export default function ApiKeysPage() {
         <DataTable
           caption="API keys"
           columns={columns}
-          data={items}
+          data={tableData}
           getRowKey={(k) => k.prefix}
         />
       )}

@@ -1,7 +1,9 @@
 "use client";
 
+import { PageShell } from "@/components/PageShell";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
+import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TimeAgo } from "@/components/TimeAgo";
 import { safeFormatTimestamp } from "@/lib/format";
@@ -20,8 +22,13 @@ export default function WebhooksPage() {
     apiGet<{ items: Webhook[] }>("/api/v1/webhooks")
       .then((b) => setItems(b.items))
       .catch((e) => setError(e.message));
+
   useEffect(() => {
-    load();
+    let cancelled = false;
+    apiGet<{ items: Webhook[] }>("/api/v1/webhooks")
+      .then((b) => { if (!cancelled) setItems(b.items); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
   }, []);
 
   const onCreate = async (e: React.FormEvent) => {
@@ -50,11 +57,7 @@ export default function WebhooksPage() {
   };
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <ConfirmDialog
         open={pendingRemove !== null}
         title="Remove webhook?"
@@ -94,11 +97,7 @@ export default function WebhooksPage() {
         >
           Register
         </button>
-        {error && (
-          <p role="alert" className="text-sm text-rose-600">
-            {error}
-          </p>
-        )}
+        <AlertError message={error} />
       </form>
       {items && (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -143,6 +142,6 @@ export default function WebhooksPage() {
           })}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }

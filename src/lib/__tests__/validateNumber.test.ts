@@ -1,13 +1,18 @@
 import {
   parseNonNegativeInt,
   parsePositiveInt,
+  MAX_SAFE_INTEGER_VAL,
   type ParseResult,
 } from "../validateNumber";
 
 // Type-level assertion: ParseResult is the correct discriminated union shape.
-// If the type changes, the compile step will catch it here.
 const _typeCheck: ParseResult = { ok: true, value: 0 };
 void _typeCheck;
+
+const NON_NEG_MSG =
+  "Price must be a non-negative integer between 0 and 9,007,199,254,740,991.";
+const POS_MSG =
+  "requests must be a positive integer between 1 and 9,007,199,254,740,991";
 
 describe("validateNumber", () => {
   describe("parseNonNegativeInt", () => {
@@ -15,6 +20,20 @@ describe("validateNumber", () => {
       expect(parseNonNegativeInt("0")).toEqual({ ok: true, value: 0 });
       expect(parseNonNegativeInt("1")).toEqual({ ok: true, value: 1 });
       expect(parseNonNegativeInt("42")).toEqual({ ok: true, value: 42 });
+    });
+
+    it("accepts MAX_SAFE_INTEGER_VAL but rejects values above it", () => {
+      const max = MAX_SAFE_INTEGER_VAL;
+      expect(parseNonNegativeInt(String(max))).toEqual({
+        ok: true,
+        value: max,
+      });
+
+      const above = BigInt(max) + 1n;
+      expect(parseNonNegativeInt(String(above))).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
     });
 
     it("accepts leading zeros", () => {
@@ -37,7 +56,7 @@ describe("validateNumber", () => {
     it("rejects empty strings and whitespace-only inputs", () => {
       const expectedError = {
         ok: false,
-        message: "Price must be a non-negative integer.",
+        message: NON_NEG_MSG,
       };
       expect(parseNonNegativeInt("")).toEqual(expectedError);
       expect(parseNonNegativeInt("   ")).toEqual(expectedError);
@@ -47,7 +66,7 @@ describe("validateNumber", () => {
     it("rejects negative integers and -0", () => {
       const expectedError = {
         ok: false,
-        message: "Price must be a non-negative integer.",
+        message: NON_NEG_MSG,
       };
       expect(parseNonNegativeInt("-1")).toEqual(expectedError);
       expect(parseNonNegativeInt("-0")).toEqual(expectedError);
@@ -57,7 +76,7 @@ describe("validateNumber", () => {
     it("rejects floats and non-integer decimals", () => {
       const expectedError = {
         ok: false,
-        message: "Price must be a non-negative integer.",
+        message: NON_NEG_MSG,
       };
       expect(parseNonNegativeInt("1.5")).toEqual(expectedError);
       expect(parseNonNegativeInt("-0.1")).toEqual(expectedError);
@@ -67,7 +86,7 @@ describe("validateNumber", () => {
     it("rejects non-numeric strings, NaN, and Infinities", () => {
       const expectedError = {
         ok: false,
-        message: "Price must be a non-negative integer.",
+        message: NON_NEG_MSG,
       };
       expect(parseNonNegativeInt("abc")).toEqual(expectedError);
       expect(parseNonNegativeInt("123abc")).toEqual(expectedError);
@@ -76,32 +95,64 @@ describe("validateNumber", () => {
       expect(parseNonNegativeInt("-Infinity")).toEqual(expectedError);
     });
 
-    it("accepts scientific notation only when it evaluates to a non-negative integer", () => {
-      expect(parseNonNegativeInt("1e2")).toEqual({ ok: true, value: 100 });
-      expect(parseNonNegativeInt("1e0")).toEqual({ ok: true, value: 1 });
-    });
-
-    it("rejects scientific notation that does not evaluate to an integer or is negative", () => {
-      const expectedError = {
+    it("rejects exponent notation (e.g. 1e2, 1E2)", () => {
+      expect(parseNonNegativeInt("1e2")).toEqual({
         ok: false,
-        message: "Price must be a non-negative integer.",
-      };
-      expect(parseNonNegativeInt("1e-2")).toEqual(expectedError);
-      expect(parseNonNegativeInt("-1e2")).toEqual(expectedError);
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("1E2")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("1e-2")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("1e0")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
     });
 
     it("documents coercion behaviour: hex, binary, and octal literals are accepted by Number()", () => {
-      // Number("0xff") === 255, Number("0b101") === 5 — both are non-negative integers.
-      // Form inputs typed by users will not normally contain these, but the contract
-      // is defined by Number() coercion so callers should be aware.
       expect(parseNonNegativeInt("0xff")).toEqual({ ok: true, value: 255 });
       expect(parseNonNegativeInt("0b101")).toEqual({ ok: true, value: 5 });
     });
 
     it("accepts strings with a leading plus sign via Number() coercion", () => {
-      // Number("+1") === 1, Number("+0") === 0 — both are valid non-negative integers.
       expect(parseNonNegativeInt("+1")).toEqual({ ok: true, value: 1 });
       expect(parseNonNegativeInt("+0")).toEqual({ ok: true, value: 0 });
+    });
+
+    it("rejects whitespace-padded input", () => {
+      expect(parseNonNegativeInt(" 100 ")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("100 ")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt(" 100")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("\t42")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+      expect(parseNonNegativeInt("\n42")).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
+    });
+
+    it("rejects strings that look like large unsafe integers", () => {
+      const unsafe1 = String(BigInt(MAX_SAFE_INTEGER_VAL) + 100n);
+      expect(parseNonNegativeInt(unsafe1)).toEqual({
+        ok: false,
+        message: NON_NEG_MSG,
+      });
     });
   });
 
@@ -109,6 +160,20 @@ describe("validateNumber", () => {
     it("accepts positive integers >= 1", () => {
       expect(parsePositiveInt("1")).toEqual({ ok: true, value: 1 });
       expect(parsePositiveInt("42")).toEqual({ ok: true, value: 42 });
+    });
+
+    it("accepts MAX_SAFE_INTEGER_VAL but rejects values above it", () => {
+      const max = MAX_SAFE_INTEGER_VAL;
+      expect(parsePositiveInt(String(max))).toEqual({
+        ok: true,
+        value: max,
+      });
+
+      const above = BigInt(max) + 1n;
+      expect(parsePositiveInt(String(above))).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
     });
 
     it("accepts leading zeros for non-zero values", () => {
@@ -130,7 +195,7 @@ describe("validateNumber", () => {
     it("rejects empty, whitespace-only, 0, negative integers, and floats", () => {
       const expectedError = {
         ok: false,
-        message: "requests must be a positive integer",
+        message: POS_MSG,
       };
       expect(parsePositiveInt("")).toEqual(expectedError);
       expect(parsePositiveInt("   ")).toEqual(expectedError);
@@ -145,7 +210,7 @@ describe("validateNumber", () => {
     it("rejects non-numeric strings, NaN, and Infinities", () => {
       const expectedError = {
         ok: false,
-        message: "requests must be a positive integer",
+        message: POS_MSG,
       };
       expect(parsePositiveInt("abc")).toEqual(expectedError);
       expect(parsePositiveInt("42abc")).toEqual(expectedError);
@@ -154,19 +219,45 @@ describe("validateNumber", () => {
       expect(parsePositiveInt("-Infinity")).toEqual(expectedError);
     });
 
-    it("rejects scientific notation that is not an integer", () => {
+    it("rejects exponent notation", () => {
+      expect(parsePositiveInt("1e1")).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
+      expect(parsePositiveInt("1E1")).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
       expect(parsePositiveInt("1e-1")).toEqual({
         ok: false,
-        message: "requests must be a positive integer",
+        message: POS_MSG,
       });
     });
 
-    it("accepts scientific notation only when it becomes a positive integer", () => {
-      expect(parsePositiveInt("1e1")).toEqual({ ok: true, value: 10 });
+    it("rejects whitespace-padded input", () => {
+      expect(parsePositiveInt(" 1 ")).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
+      expect(parsePositiveInt("1 ")).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
+      expect(parsePositiveInt(" 1")).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
+    });
+
+    it("rejects strings that look like large unsafe integers", () => {
+      const unsafe1 = String(BigInt(MAX_SAFE_INTEGER_VAL) + 100n);
+      expect(parsePositiveInt(unsafe1)).toEqual({
+        ok: false,
+        message: POS_MSG,
+      });
     });
 
     it("documents coercion behaviour: hex and binary literals are accepted when they evaluate to a positive integer", () => {
-      // Number("0xff") === 255, Number("0b101") === 5 — both are positive integers.
       expect(parsePositiveInt("0xff")).toEqual({ ok: true, value: 255 });
       expect(parsePositiveInt("0b101")).toEqual({ ok: true, value: 5 });
     });
@@ -176,10 +267,9 @@ describe("validateNumber", () => {
     });
 
     it("rejects leading-zero strings that evaluate to zero", () => {
-      // "00000" coerces to 0, which is not a positive integer
       expect(parsePositiveInt("00000")).toEqual({
         ok: false,
-        message: "requests must be a positive integer",
+        message: POS_MSG,
       });
     });
   });

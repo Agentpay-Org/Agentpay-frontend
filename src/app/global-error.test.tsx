@@ -23,8 +23,7 @@ describe("GlobalError — rendering", () => {
   it("renders html, body and structure", () => {
     // Inspect React elements directly to verify presence of html/body tags
     const originalUseEffect = React.useEffect;
-    // @ts-expect-error - temporary mock of react hook
-    React.useEffect = jest.fn();
+    (React as unknown as { useEffect: unknown }).useEffect = jest.fn();
 
     try {
       const element = GlobalError({ error: makeError("boom"), reset: () => {} });

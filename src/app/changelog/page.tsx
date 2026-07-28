@@ -1,3 +1,4 @@
+import { PageShell } from "@/components/PageShell";
 import { EmptyState } from "@/components/EmptyState";
 import { getEntries, type ChangelogEntry } from "./entries";
 
@@ -16,11 +17,7 @@ export default function ChangelogPage() {
   });
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <h1 className="text-3xl font-semibold tracking-tight">Changelog</h1>
       {entries.length === 0 ? (
         <EmptyState
@@ -43,6 +40,6 @@ export default function ChangelogPage() {
           ))}
         </ol>
       )}
-    </main>
+    </PageShell>
   );
 }

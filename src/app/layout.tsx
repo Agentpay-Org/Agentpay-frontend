@@ -4,17 +4,20 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { ToastProvider } from "@/components/ToastProvider";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -109,6 +112,7 @@ export default async function RootLayout({
           Skip to main content
         </a>
         <ToastProvider>
+          <OfflineBanner />
           <Header />
           {children}
           <Footer />

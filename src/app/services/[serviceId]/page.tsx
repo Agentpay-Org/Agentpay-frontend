@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
-import { KeyValueGrid } from "@/components/KeyValueGrid";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/Badge";
 import { CopyButton } from "@/components/CopyButton";
+import { KeyValueGrid } from "@/components/KeyValueGrid";
+import { PageShell } from "@/components/PageShell";
 import { formatStroops } from "@/lib/format";
 
 type Service = { serviceId: string; priceStroops: number };
@@ -23,33 +25,27 @@ export default function ServiceDetailPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     apiGet<Service>(`/api/v1/services/${encodeURIComponent(serviceId)}`)
-      .then(setService)
-      .catch((e) => setError(e.message));
+      .then((s) => { if (!cancelled) setService(s); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
     apiGet<Rollup>(`/api/v1/services/${encodeURIComponent(serviceId)}/usage`)
-      .then(setRollup)
+      .then((r) => { if (!cancelled) setRollup(r); })
       .catch(() => {
         /* rollup is optional */
       });
+    return () => { cancelled = true; };
   }, [serviceId]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="mx-auto flex min-h-[60vh] max-w-3xl flex-col gap-6 p-8 focus:outline-none"
-    >
+    <PageShell>
       <Link href="/services" className="text-sm text-zinc-500 hover:underline">
         ← Back to services
       </Link>
       <h1 className="text-3xl font-semibold tracking-tight font-mono">
         {serviceId}
       </h1>
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
-      )}
+      {error && <ErrorMessage title="Failed to load service" detail={error} />}
       {service && (
         <div className="rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
           <KeyValueGrid
@@ -98,6 +94,6 @@ export default function ServiceDetailPage({
           Top agents
         </Link>
       </div>
-    </main>
+    </PageShell>
   );
 }

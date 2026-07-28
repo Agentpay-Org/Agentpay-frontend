@@ -26,14 +26,22 @@ Dashboard and Stellar wallet integration for the AgentPay protocol (machine-to-m
    npm install
    ```
 
-3. **Verify setup**:
+3. **Configure environment variables (optional)**:
+
+   Copy [.env.example](.env.example) to `.env.local` to customize local environment settings:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. **Verify setup**:
 
    ```bash
    npm run build
    npm test
    ```
 
-4. **Run locally**:
+5. **Run locally**:
    ```bash
    npm run dev
    ```
@@ -90,6 +98,9 @@ agentpay-frontend/
     └── ci.yml                                    # CI: build, test
 ```
 
+## Security
+
+Please report suspected vulnerabilities privately. See [SECURITY.md](SECURITY.md) for supported versions, response expectations, disclosure scope, and the private reporting path. The CSP and browser header architecture is documented in [docs/security-headers.md](docs/security-headers.md).
 ## Route architecture
 
 For a detailed breakdown of each route's responsibility, render mode (server vs client), nested layout, and backend endpoints, see [docs/architecture.md](docs/architecture.md).
@@ -225,7 +236,7 @@ Key design decisions:
 
 ## Responsive header navigation
 
-On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu with a keyboard-operable toggle (Escape closes; focus returns to the toggle). The inline primary navigation remains for `md` and larger screens.
+On small screens (below Tailwind `md`), the Header collapses into an accessible disclosure menu. Its real button exposes the menu state to assistive technology, the links remain in the natural Tab order, and Escape closes the menu and returns focus to the toggle. Navigation also closes the menu automatically. The inline primary navigation remains unchanged at `md` and larger screen widths.
 
 Additionally, the Header marks exactly one active route strictly utilizing `aria-current="page"` (leveraging the client-side `usePathname()` context), creating a robust "you are here" cue for assistive technologies.
 
@@ -275,6 +286,8 @@ every backend endpoint the dashboard calls — request bodies, response shapes, 
 shared `ApiError` envelope, the 204/no-body convention, and pause-flag semantics.
 
 ## Environment variables
+
+See [.env.example](.env.example) for a reference template documenting all supported environment variables, default values, inline comments, and origin constraints.
 
 | Variable                        | Visibility                      | Default                 | Purpose                                                                                                                                                                         |
 | ------------------------------- | ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -565,3 +578,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow, branch
 ## License
 
 MIT
+
+## Stats freshness
+
+The stats page polls `GET /api/v1/stats` every five seconds, shows when the
+latest successful response arrived, and keeps that timestamp visible if a
+later poll fails. Polling can be paused and resumed with the page control.

@@ -1,4 +1,5 @@
 import { act, render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Pagination } from "../Pagination";
 
 function settle() {
@@ -219,5 +220,62 @@ describe("Pagination", () => {
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("the loading state never also renders the error or nav states", () => {
+    render(<Pagination page={1} pageCount={5} onChange={jest.fn()} loading />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("the error state never also renders the loading or nav states", () => {
+    render(
+      <Pagination page={1} pageCount={5} onChange={jest.fn()} error="Oops" />
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("reaches Previous and Next by keyboard and activates them with Enter", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onChange = jest.fn();
+    render(<Pagination page={2} pageCount={3} onChange={onChange} />);
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /previous/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith(1);
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /next/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith(3);
+  });
+
+  it("skips the disabled Previous button when tabbing on page 1", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<Pagination page={1} pageCount={3} onChange={jest.fn()} />);
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /next/i })).toHaveFocus();
+  });
+
+  it("reaches and activates the retry button by keyboard", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onRetry = jest.fn();
+    render(
+      <Pagination
+        page={1}
+        pageCount={5}
+        onChange={jest.fn()}
+        error="Oops"
+        onRetry={onRetry}
+      />
+    );
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /try again/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

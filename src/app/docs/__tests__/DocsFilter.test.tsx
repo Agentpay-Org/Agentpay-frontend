@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DocsFilter } from "../DocsFilter";
 import { getSections } from "../endpoints";
 
@@ -142,6 +143,38 @@ describe("DocsFilter", () => {
       expect(screen.getByText(section.h)).toBeInTheDocument();
     }
     expect(input.value).toBe("");
+    expect(getLiveRegion(container)).toHaveTextContent("");
+  });
+
+  it("is reachable and operable entirely by keyboard: type, then Tab to and activate Clear", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const { container } = render(<DocsFilter sections={sections} />);
+
+    await user.tab();
+    const input = getSearchInput();
+    expect(input).toHaveFocus();
+
+    await user.keyboard("/api/v1/settle");
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(screen.getByText("POST /api/v1/settle")).toBeInTheDocument();
+    expect(screen.queryByText("POST /api/v1/usage")).not.toBeInTheDocument();
+
+    await user.tab();
+    const clearButton = screen.getByRole("button", { name: "Clear search" });
+    expect(clearButton).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(input.value).toBe("");
+    // Clearing returns focus to the input (SearchBar's own behavior).
+    expect(input).toHaveFocus();
+    for (const section of sections) {
+      expect(screen.getByText(section.h)).toBeInTheDocument();
+    }
     expect(getLiveRegion(container)).toHaveTextContent("");
   });
 

@@ -230,8 +230,16 @@ secrets, private keys, seed phrases, or passwords.
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `page` | `number` | yes | Current 1-based page. |
-| `pageCount` | `number` | yes | Total pages. Renders nothing when `pageCount <= 1`. |
+| `pageCount` | `number` | yes | Total pages. Renders nothing when `pageCount <= 1` (and neither `loading` nor `error` is set). |
 | `onChange` | `(next: number) => void` | yes | Called with the clamped next page. |
+| `loading` | `boolean` | no | Shows a `Spinner` in place of the nav controls, regardless of `pageCount`. Defaults to `false`. |
+| `error` | `string \| null` | no | Shows an `ErrorMessage` in place of the nav controls, regardless of `pageCount`. Takes precedence over `loading`. Defaults to `null`. |
+| `onRetry` | `() => void` | no | Retry handler passed through to the error state's "Try again" button. Only rendered when both `error` and `onRetry` are set. |
+
+Announces page changes to assistive tech via a polite, debounced `aria-live`
+region (`"Page N of pageCount"`). The announcement is debounced 300ms so
+rapid successive page changes collapse into a single announcement for the
+page the user settles on, and it stays empty on first mount.
 
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />

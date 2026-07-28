@@ -30,18 +30,21 @@ import { useApi } from "@/lib/useApi";
 Return shape:
 
 ```ts
-type ApiErrorKind = "timeout" | "generic";
+type ApiErrorKind = "timeout" | "rate_limited" | "generic";
 
 type State<T> =
-  | { status: "loading" }
+  | { status: "loading"; refetch: () => void }
   | {
       status: "error";
       error: string;
       errorKind: ApiErrorKind;
       isTimeout: boolean;
+      isRateLimited: boolean;
+      retryAfterMs: number | null;
       retry: () => void;
+      refetch: () => void;
     }
-  | { status: "ok"; data: T };
+  | { status: "ok"; data: T; refetch: () => void };
 ```
 
 Parameters:
@@ -52,37 +55,49 @@ Parameters:
 Behaviour and gotchas:
 
 - This is a client hook and must be used from a client component.
-- The first state is `{ status: "loading" }`.
+- The first state is `{ status: "loading"; refetch }`.
 - When `path` changes, the hook dispatches a fresh loading state and fetches the
   new path.
 - If the component unmounts or `path` changes before a response settles, the
-  stale response is ignored through an internal cancellation flag.
+  stale response is ignored through an internal cancellation flag and the
+  in-flight request is aborted.
 - `path: null` skips fetching and leaves the existing state unchanged.
-- Detects `ApiTimeoutError` and sets `errorKind: "timeout"`, `isTimeout: true`, and `"Request timed out. Please try again."`. Generic errors set `errorKind: "generic"`, `isTimeout: false`, and `Error.message` (or `"failed to load"`).
-- Provides a `retry()` callback affordance on the error state to trigger a refetch of the path.
+  Calling `refetch()` while `path` is `null` is a no-op.
+- Detects `ApiTimeoutError` and sets `errorKind: "timeout"`, `isTimeout: true`, and `"Request timed out. Please try again."`. Detects `ApiRateLimitedError` and sets `errorKind: "rate_limited"`, `isRateLimited: true`, and `retryAfterMs`. Generic errors set `errorKind: "generic"`, `isTimeout: false`, and `Error.message` (or `"failed to load"`).
+- Provides a stable `refetch()` callback on every status. Calling it aborts any
+  in-flight request and re-runs the fetch for the current `path`.
+- Error states also expose `retry()`, which is the same callback as `refetch`,
+  kept for existing callers.
+- When the browser fires an `online` event while the hook is in an error state,
+  the request is automatically retried.
 
-Minimal real usage, based on `src/app/changelog/page.tsx`:
+Minimal real usage, based on `src/app/agents/[agent]/page.tsx`:
 
 ```tsx
 "use client";
 
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { Spinner } from "@/components/Spinner";
 import { useApi } from "@/lib/useApi";
 
-type Entry = { version: string; date: string; notes: string[] };
+type Usage = { items: { serviceId: string; total: number }[] };
 
-export function ChangelogPreview() {
-  const state = useApi<{ entries: Entry[] }>("/api/v1/changelog");
+export function AgentUsagePreview({ agent }: { agent: string }) {
+  const state = useApi<Usage>(
+    `/api/v1/agents/${encodeURIComponent(agent)}/usage`,
+  );
 
   if (state.status === "loading") {
-    return <Spinner label="Loading changelog" />;
+    return <Spinner label="Loading usage" />;
   }
 
   if (state.status === "error") {
-    return <p role="alert">{state.error}</p>;
+    return (
+      <ErrorMessage title={state.error} onRetry={state.refetch} />
+    );
   }
 
-  return <p>{state.data.entries.length} entries</p>;
+  return <p>{state.data.items.length} services</p>;
 }
 ```
 

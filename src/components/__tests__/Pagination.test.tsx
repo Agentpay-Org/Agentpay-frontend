@@ -153,4 +153,71 @@ describe("Pagination", () => {
     fireEvent.click(screen.getByRole("button", { name: /previous/i }));
     expect(onChange).toHaveBeenCalledWith(1);
   });
+
+  it("shows a loading indicator instead of the nav controls", () => {
+    render(<Pagination page={1} pageCount={5} onChange={jest.fn()} loading />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading page");
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("shows the loading indicator even when pageCount is 1", () => {
+    render(<Pagination page={1} pageCount={1} onChange={jest.fn()} loading />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading page");
+  });
+
+  it("shows an error state with a retry action instead of the nav controls", () => {
+    const onRetry = jest.fn();
+    render(
+      <Pagination
+        page={1}
+        pageCount={5}
+        onChange={jest.fn()}
+        error="Network request failed"
+        onRetry={onRetry}
+      />
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Failed to load page");
+    expect(alert).toHaveTextContent("Network request failed");
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an error state without a retry button when onRetry is omitted", () => {
+    render(
+      <Pagination
+        page={1}
+        pageCount={5}
+        onChange={jest.fn()}
+        error="Network request failed"
+      />
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /try again/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the error state even when pageCount is 1", () => {
+    render(
+      <Pagination page={1} pageCount={1} onChange={jest.fn()} error="Oops" />
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("prioritizes the error state over loading when both are set", () => {
+    render(
+      <Pagination
+        page={1}
+        pageCount={5}
+        onChange={jest.fn()}
+        loading
+        error="Oops"
+      />
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

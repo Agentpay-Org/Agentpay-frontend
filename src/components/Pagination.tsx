@@ -2,16 +2,33 @@
 
 import { useState } from "react";
 import { useDebounce } from "@/lib/useDebounce";
+import { ErrorMessage } from "./ErrorMessage";
+import { Spinner } from "./Spinner";
 
 type Props = {
   page: number;
   pageCount: number;
   onChange: (next: number) => void;
+  /** Shows a loading indicator in place of the nav controls. */
+  loading?: boolean;
+  /** Shows an error state (with retry, if `onRetry` is given) in place of
+   * the nav controls. Takes precedence over `loading`. */
+  error?: string | null;
+  /** Called when the error state's retry action is activated. Only
+   * rendered as a button when both `error` and `onRetry` are set. */
+  onRetry?: () => void;
 };
 
 const ANNOUNCEMENT_DEBOUNCE_MS = 300;
 
-export function Pagination({ page, pageCount, onChange }: Props) {
+export function Pagination({
+  page,
+  pageCount,
+  onChange,
+  loading = false,
+  error = null,
+  onRetry,
+}: Props) {
   // Debounce the announced page so rapid successive changes (e.g. fast
   // repeat clicks) collapse into a single announcement for the page the
   // user settles on, instead of queuing one per intermediate change.
@@ -24,6 +41,24 @@ export function Pagination({ page, pageCount, onChange }: Props) {
   if (debouncedPage !== previousAnnouncedPage) {
     setPreviousAnnouncedPage(debouncedPage);
     setAnnouncement(pageCount > 1 ? `Page ${debouncedPage} of ${pageCount}` : "");
+  }
+
+  if (error) {
+    return (
+      <ErrorMessage
+        title="Failed to load page"
+        detail={error}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-2">
+        <Spinner label="Loading page" />
+      </div>
+    );
   }
 
   if (pageCount <= 1) return null;

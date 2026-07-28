@@ -9,6 +9,7 @@ contract changes.
 | Hook | Source | Status |
 | --- | --- | --- |
 | `useApi` | `src/lib/useApi.ts` | Exported |
+| `useApiMutation` | `src/lib/useApiMutation.ts` | Exported |
 | `useClipboard` | `src/lib/useClipboard.ts` | Exported |
 | `useDebounce` | `src/lib/useDebounce.ts` | Exported |
 | `useLocalState` | `src/lib/useLocalState.ts` | Exported |
@@ -30,18 +31,21 @@ import { useApi } from "@/lib/useApi";
 Return shape:
 
 ```ts
-type ApiErrorKind = "timeout" | "generic";
+type ApiErrorKind = "timeout" | "rate_limited" | "generic";
 
 type State<T> =
-  | { status: "loading" }
+  | { status: "loading"; refetch: () => void }
   | {
       status: "error";
       error: string;
       errorKind: ApiErrorKind;
       isTimeout: boolean;
+      isRateLimited: boolean;
+      retryAfterMs: number | null;
       retry: () => void;
+      refetch: () => void;
     }
-  | { status: "ok"; data: T };
+  | { status: "ok"; data: T; refetch: () => void };
 ```
 
 Parameters:
@@ -52,43 +56,143 @@ Parameters:
 Behaviour and gotchas:
 
 - This is a client hook and must be used from a client component.
-- The first state is `{ status: "loading" }`.
+- The first state is `{ status: "loading"; refetch }`.
 - When `path` changes, the hook dispatches a fresh loading state and fetches the
   new path.
 - If the component unmounts or `path` changes before a response settles, the
-  stale response is ignored through an internal cancellation flag.
+  stale response is ignored through an internal cancellation flag and the
+  in-flight request is aborted.
 - `path: null` skips fetching and leaves the existing state unchanged.
-- Detects `ApiTimeoutError` and sets `errorKind: "timeout"`, `isTimeout: true`, and `"Request timed out. Please try again."`. Generic errors set `errorKind: "generic"`, `isTimeout: false`, and `Error.message` (or `"failed to load"`).
-- Provides a `retry()` callback affordance on the error state to trigger a refetch of the path.
+  Calling `refetch()` while `path` is `null` is a no-op.
+- Detects `ApiTimeoutError` and sets `errorKind: "timeout"`, `isTimeout: true`, and `"Request timed out. Please try again."`. Detects `ApiRateLimitedError` and sets `errorKind: "rate_limited"`, `isRateLimited: true`, and `retryAfterMs`. Generic errors set `errorKind: "generic"`, `isTimeout: false`, and `Error.message` (or `"failed to load"`).
+- Provides a stable `refetch()` callback on every status. Calling it aborts any
+  in-flight request and re-runs the fetch for the current `path`.
+- Error states also expose `retry()`, which is the same callback as `refetch`,
+  kept for existing callers.
+- When the browser fires an `online` event while the hook is in an error state,
+  the request is automatically retried.
 
-Minimal real usage, based on `src/app/changelog/page.tsx`:
+Minimal real usage, based on `src/app/agents/[agent]/page.tsx`:
 
 ```tsx
 "use client";
 
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { Spinner } from "@/components/Spinner";
 import { useApi } from "@/lib/useApi";
 
-type Entry = { version: string; date: string; notes: string[] };
+type Usage = { items: { serviceId: string; total: number }[] };
 
-export function ChangelogPreview() {
-  const state = useApi<{ entries: Entry[] }>("/api/v1/changelog");
+export function AgentUsagePreview({ agent }: { agent: string }) {
+  const state = useApi<Usage>(
+    `/api/v1/agents/${encodeURIComponent(agent)}/usage`,
+  );
 
   if (state.status === "loading") {
-    return <Spinner label="Loading changelog" />;
+    return <Spinner label="Loading usage" />;
   }
 
   if (state.status === "error") {
-    return <p role="alert">{state.error}</p>;
+    return (
+      <ErrorMessage title={state.error} onRetry={state.refetch} />
+    );
   }
 
-  return <p>{state.data.entries.length} entries</p>;
+  return <p>{state.data.items.length} services</p>;
 }
 ```
 
 Use this hook for simple GET-backed client views that can be represented as
-loading, error, or successful data. For write actions or request bodies, use the
-helpers in `src/lib/apiClient.ts` directly.
+loading, error, or successful data. For write actions or request bodies, prefer
+`useApiMutation` below.
+
+## `useApiMutation`
+
+```ts
+function useApiMutation<TData, TVariables = void>(
+  mutationFn: (
+    variables: TVariables,
+    options: { signal: AbortSignal },
+  ) => Promise<TData>,
+): {
+  mutate: (variables: TVariables) => Promise<TData>;
+  status: "idle" | "pending" | "success" | "error";
+  error: string | null;
+  reset: () => void;
+};
+```
+
+Import from:
+
+```ts
+import { useApiMutation } from "@/lib/useApiMutation";
+```
+
+Parameters:
+
+- `mutationFn`: async writer that receives call variables and an AbortSignal.
+  Forward the signal into `apiPost` / `apiDelete` / `apiPatch` so the shared
+  client can cancel the underlying fetch.
+
+Return shape:
+
+- `mutate(variables)`: starts the mutation, sets `status` to `"pending"`, and
+  resolves with `TData` on success. On failure it sets `status` to `"error"`,
+  mirrors a display-ready message on `error`, and rethrows.
+- `status`: `"idle"` | `"pending"` | `"success"` | `"error"`.
+- `error`: display-ready message when `status` is `"error"`, otherwise `null`.
+- `reset()`: returns to `"idle"`, clears `error`, and aborts any in-flight
+  mutation.
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- Calling `mutate` while a previous mutation is still pending aborts the older
+  request and ignores its late response.
+- Unmount aborts the current request and ignores late responses, matching the
+  `useApi` cancellation contract.
+- Aborted / superseded mutations do not flip `status` to `"error"`.
+- Non-Error rejections fall back to `"failed to mutate"`.
+
+Minimal real usage, based on `src/app/services/new/page.tsx`:
+
+```tsx
+"use client";
+
+import { apiPost } from "@/lib/apiClient";
+import { useApiMutation } from "@/lib/useApiMutation";
+
+type CreateServiceBody = {
+  serviceId: string;
+  priceStroops: number;
+};
+
+export function RegisterServiceButton(props: CreateServiceBody) {
+  const { mutate, status, error } = useApiMutation(
+    (body: CreateServiceBody, { signal }) =>
+      apiPost("/api/v1/services", body, { signal }),
+  );
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={status === "pending"}
+        onClick={() => {
+          void mutate(props).catch(() => {});
+        }}
+      >
+        {status === "pending" ? "Saving…" : "Register"}
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
+```
+
+Use this hook for POST / DELETE / PATCH flows that need a shared pending, error,
+and success state machine without copying AbortController cleanup into each
+page.
 
 ## `usePolling`
 
@@ -389,4 +493,5 @@ Use this hook in components that need to react to connectivity changes, such as 
 ## Coverage Note
 
 This reference covers every hook exported from `src/lib` at the time of writing:
-`useApi`, `useClipboard`, `useOnlineStatus`, `usePolling`, `useDebounce`, and `useLocalState`.
+`useApi`, `useApiMutation`, `useClipboard`, `useOnlineStatus`, `usePolling`,
+`useDebounce`, and `useLocalState`.

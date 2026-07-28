@@ -236,10 +236,15 @@ secrets, private keys, seed phrases, or passwords.
 | `error` | `string \| null` | no | Shows an `ErrorMessage` in place of the nav controls, regardless of `pageCount`. Takes precedence over `loading`. Defaults to `null`. |
 | `onRetry` | `() => void` | no | Retry handler passed through to the error state's "Try again" button. Only rendered when both `error` and `onRetry` are set. |
 
+Render precedence is **error → loading → hidden (`pageCount <= 1`) → nav**.
 Announces page changes to assistive tech via a polite, debounced `aria-live`
 region (`"Page N of pageCount"`). The announcement is debounced 300ms so
 rapid successive page changes collapse into a single announcement for the
 page the user settles on, and it stays empty on first mount.
+
+For the full prop table, state matrix, accessibility notes, and usage
+examples (including loading/error), see the
+[Pagination component contract](./pagination.md).
 
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />

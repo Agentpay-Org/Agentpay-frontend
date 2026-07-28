@@ -9,6 +9,7 @@ contract changes.
 | Hook | Source | Status |
 | --- | --- | --- |
 | `useApi` | `src/lib/useApi.ts` | Exported |
+| `useApiMutation` | `src/lib/useApiMutation.ts` | Exported |
 | `useClipboard` | `src/lib/useClipboard.ts` | Exported |
 | `useDebounce` | `src/lib/useDebounce.ts` | Exported |
 | `useLocalState` | `src/lib/useLocalState.ts` | Exported |
@@ -102,8 +103,96 @@ export function AgentUsagePreview({ agent }: { agent: string }) {
 ```
 
 Use this hook for simple GET-backed client views that can be represented as
-loading, error, or successful data. For write actions or request bodies, use the
-helpers in `src/lib/apiClient.ts` directly.
+loading, error, or successful data. For write actions or request bodies, prefer
+`useApiMutation` below.
+
+## `useApiMutation`
+
+```ts
+function useApiMutation<TData, TVariables = void>(
+  mutationFn: (
+    variables: TVariables,
+    options: { signal: AbortSignal },
+  ) => Promise<TData>,
+): {
+  mutate: (variables: TVariables) => Promise<TData>;
+  status: "idle" | "pending" | "success" | "error";
+  error: string | null;
+  reset: () => void;
+};
+```
+
+Import from:
+
+```ts
+import { useApiMutation } from "@/lib/useApiMutation";
+```
+
+Parameters:
+
+- `mutationFn`: async writer that receives call variables and an AbortSignal.
+  Forward the signal into `apiPost` / `apiDelete` / `apiPatch` so the shared
+  client can cancel the underlying fetch.
+
+Return shape:
+
+- `mutate(variables)`: starts the mutation, sets `status` to `"pending"`, and
+  resolves with `TData` on success. On failure it sets `status` to `"error"`,
+  mirrors a display-ready message on `error`, and rethrows.
+- `status`: `"idle"` | `"pending"` | `"success"` | `"error"`.
+- `error`: display-ready message when `status` is `"error"`, otherwise `null`.
+- `reset()`: returns to `"idle"`, clears `error`, and aborts any in-flight
+  mutation.
+
+Behaviour and gotchas:
+
+- This is a client hook and must be used from a client component.
+- Calling `mutate` while a previous mutation is still pending aborts the older
+  request and ignores its late response.
+- Unmount aborts the current request and ignores late responses, matching the
+  `useApi` cancellation contract.
+- Aborted / superseded mutations do not flip `status` to `"error"`.
+- Non-Error rejections fall back to `"failed to mutate"`.
+
+Minimal real usage, based on `src/app/services/new/page.tsx`:
+
+```tsx
+"use client";
+
+import { apiPost } from "@/lib/apiClient";
+import { useApiMutation } from "@/lib/useApiMutation";
+
+type CreateServiceBody = {
+  serviceId: string;
+  priceStroops: number;
+};
+
+export function RegisterServiceButton(props: CreateServiceBody) {
+  const { mutate, status, error } = useApiMutation(
+    (body: CreateServiceBody, { signal }) =>
+      apiPost("/api/v1/services", body, { signal }),
+  );
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={status === "pending"}
+        onClick={() => {
+          void mutate(props).catch(() => {});
+        }}
+      >
+        {status === "pending" ? "Saving…" : "Register"}
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
+```
+
+Use this hook for POST / DELETE / PATCH flows that need a shared pending, error,
+and success state machine without copying AbortController cleanup into each
+page.
 
 ## `usePolling`
 
@@ -404,4 +493,5 @@ Use this hook in components that need to react to connectivity changes, such as 
 ## Coverage Note
 
 This reference covers every hook exported from `src/lib` at the time of writing:
-`useApi`, `useClipboard`, `useOnlineStatus`, `usePolling`, `useDebounce`, and `useLocalState`.
+`useApi`, `useApiMutation`, `useClipboard`, `useOnlineStatus`, `usePolling`,
+`useDebounce`, and `useLocalState`.

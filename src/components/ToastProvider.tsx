@@ -35,6 +35,17 @@ const AUTO_DISMISS_MS = 4000;
  *   immediately instead of waiting out the {@link AUTO_DISMISS_MS} auto-dismiss.
  *
  * Satisfies WCAG 4.1.3 Status Messages.
+ *
+ * State model: unlike a `useApi`-backed view, this component has no
+ * "loading" phase — `push()` is a synchronous, local state update, not a
+ * network fetch, so there is nothing to retry. Its two states are:
+ * - **Empty**: no toasts on screen. `push(message)` no-ops for a blank or
+ *   whitespace-only `message` so this never regresses into a visible but
+ *   content-less toast.
+ * - **Error**: an individual toast pushed with `level: "error"` — rendered
+ *   distinctly (`role="alert"`, `aria-live="assertive"`, rose background)
+ *   from every other level, and interruptive by design rather than
+ *   queued behind the current announcement.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
@@ -45,6 +56,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const push = useCallback(
     (message: string, level: Toast["level"] = "info") => {
+      // Guard against the empty state: a blank or whitespace-only message
+      // would otherwise render a content-less toast bubble — visible to
+      // sighted users as an empty box, and silently skipped by assistive
+      // tech (an aria-live region with no text announces nothing), so it
+      // helps no one. Treat it as "nothing to show" and no-op instead.
+      if (message.trim().length === 0) return;
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       setItems((s) => [...s, { id, message, level }]);
       setTimeout(() => {

@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { PageShell } from "@/components/PageShell";
 import { TimeAgo } from "@/components/TimeAgo";
+import { useDebounce } from "@/lib/useDebounce";
 import { usePolling } from "@/lib/usePolling";
 
 type Stats = {
@@ -19,8 +21,34 @@ export default function StatsPage() {
   const error = statsState.error;
   const lastUpdated = statsState.lastUpdated;
 
+  const statsSummary = stats
+    ? stats.paused
+      ? "Stats updated: Backend is paused"
+      : `Stats updated: ${stats.totalServices} services, ${stats.totalApiKeys} API keys, ${stats.totalRequests} requests, ${stats.uniqueAgents} agents`
+    : "";
+
+  const debouncedSummary = useDebounce(statsSummary, 500);
+  const [announcement, setAnnouncement] = useState("");
+  const isFirstMount = useRef(true);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      if (debouncedSummary) {
+        isFirstMount.current = false;
+      }
+      return;
+    }
+    if (debouncedSummary) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAnnouncement(debouncedSummary);
+    }
+  }, [debouncedSummary]);
+
   return (
     <PageShell>
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
       <ErrorMessage title="Failed to load stats" detail={error} />
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400">

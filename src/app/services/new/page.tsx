@@ -1,24 +1,35 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { apiPost } from "@/lib/apiClient";
 import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
 import { parseNonNegativeInt } from "@/lib/validateNumber";
+import { useApiMutation } from "@/lib/useApiMutation";
+
+type CreateServiceBody = {
+  serviceId: string;
+  priceStroops: number;
+};
 
 export default function NewServicePage() {
   const router = useRouter();
   const [serviceId, setServiceId] = useState("");
   const [priceStroops, setPriceStroops] = useState("");
   const [priceError, setPriceError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const { mutate, status, error, reset } = useApiMutation(
+    (body: CreateServiceBody, { signal }) =>
+      apiPost("/api/v1/services", body, { signal }),
+  );
+
+  const loading = status === "pending";
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    reset();
     setPriceError(null);
 
     const parsed = parseNonNegativeInt(priceStroops);
@@ -27,17 +38,14 @@ export default function NewServicePage() {
       return;
     }
 
-    setLoading(true);
     try {
-      await apiPost("/api/v1/services", {
+      await mutate({
         serviceId,
         priceStroops: parsed.value,
       });
       router.push("/services");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+    } catch {
+      // Error message is already mirrored on the mutation `error` state.
     }
   };
 
@@ -81,4 +89,3 @@ export default function NewServicePage() {
     </PageShell>
   );
 }
-

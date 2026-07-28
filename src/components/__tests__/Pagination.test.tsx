@@ -278,4 +278,182 @@ describe("Pagination", () => {
     await user.keyboard("{Enter}");
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("does not render First or Last by default", () => {
+    render(<Pagination page={2} pageCount={5} onChange={jest.fn()} />);
+    expect(screen.queryByRole("button", { name: /^first$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^last$/i })).not.toBeInTheDocument();
+  });
+
+  it("renders First and Last when showFirstLast is set", () => {
+    render(
+      <Pagination page={2} pageCount={5} onChange={jest.fn()} showFirstLast />
+    );
+    expect(screen.getByRole("button", { name: /^first$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^last$/i })).toBeInTheDocument();
+  });
+
+  it("disables First on page 1 and Last on the last page", () => {
+    const onChange = jest.fn();
+    const { rerender } = render(
+      <Pagination page={1} pageCount={3} onChange={onChange} showFirstLast />
+    );
+    expect(screen.getByRole("button", { name: /^first$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^last$/i })).not.toBeDisabled();
+
+    rerender(
+      <Pagination page={3} pageCount={3} onChange={onChange} showFirstLast />
+    );
+    expect(screen.getByRole("button", { name: /^first$/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /^last$/i })).toBeDisabled();
+  });
+
+  it("calls onChange(1) when First is clicked", () => {
+    const onChange = jest.fn();
+    render(
+      <Pagination page={3} pageCount={5} onChange={onChange} showFirstLast />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^first$/i }));
+    expect(onChange).toHaveBeenCalledWith(1);
+  });
+
+  it("calls onChange with the last page when Last is clicked", () => {
+    const onChange = jest.fn();
+    render(
+      <Pagination page={2} pageCount={5} onChange={onChange} showFirstLast />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^last$/i }));
+    expect(onChange).toHaveBeenCalledWith(5);
+  });
+
+  it("does not show a result count without totalItems and pageSize", () => {
+    render(<Pagination page={1} pageCount={5} onChange={jest.fn()} />);
+    expect(screen.queryByText(/showing/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a visible result count when totalItems and pageSize are set", () => {
+    render(
+      <Pagination
+        page={2}
+        pageCount={5}
+        onChange={jest.fn()}
+        totalItems={47}
+        pageSize={10}
+      />
+    );
+    expect(screen.getByText("showing 11-20 of 47")).toBeInTheDocument();
+  });
+
+  it("clamps the visible range on the last page", () => {
+    render(
+      <Pagination
+        page={5}
+        pageCount={5}
+        onChange={jest.fn()}
+        totalItems={47}
+        pageSize={10}
+      />
+    );
+    expect(screen.getByText("showing 41-47 of 47")).toBeInTheDocument();
+  });
+
+  it("shows a zeroed result range when totalItems is zero", () => {
+    render(
+      <Pagination
+        page={1}
+        pageCount={2}
+        onChange={jest.fn()}
+        totalItems={0}
+        pageSize={10}
+      />
+    );
+    expect(screen.getByText("showing 0-0 of 0")).toBeInTheDocument();
+  });
+
+  it("shows a zeroed result range when pageSize is zero", () => {
+    render(
+      <Pagination
+        page={1}
+        pageCount={2}
+        onChange={jest.fn()}
+        totalItems={10}
+        pageSize={0}
+      />
+    );
+    expect(screen.getByText("showing 0-0 of 10")).toBeInTheDocument();
+  });
+
+  it("announces the result count alongside the page after a change", () => {
+    const onChange = jest.fn();
+    const { container, rerender } = render(
+      <Pagination
+        page={1}
+        pageCount={5}
+        onChange={onChange}
+        totalItems={47}
+        pageSize={10}
+      />
+    );
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+
+    rerender(
+      <Pagination
+        page={2}
+        pageCount={5}
+        onChange={onChange}
+        totalItems={47}
+        pageSize={10}
+      />
+    );
+    settle();
+    expect(liveRegion).toHaveTextContent(
+      "Page 2 of 5, showing 11-20 of 47"
+    );
+  });
+
+  it("still no-ops when pageCount is one even with showFirstLast and totals", () => {
+    const { container } = render(
+      <Pagination
+        page={1}
+        pageCount={1}
+        onChange={jest.fn()}
+        showFirstLast
+        totalItems={10}
+        pageSize={10}
+      />
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("reaches First and Last by keyboard when showFirstLast is set", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onChange = jest.fn();
+    render(
+      <Pagination page={3} pageCount={5} onChange={onChange} showFirstLast />
+    );
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /^first$/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith(1);
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /previous/i })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: /next/i })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: /^last$/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledWith(5);
+  });
+
+  it("skips disabled First and Previous when tabbing on page 1 with showFirstLast", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(
+      <Pagination page={1} pageCount={3} onChange={jest.fn()} showFirstLast />
+    );
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /next/i })).toHaveFocus();
+  });
 });

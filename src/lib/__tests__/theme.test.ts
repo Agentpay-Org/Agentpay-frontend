@@ -85,45 +85,10 @@ describe("theme helpers", () => {
   });
 });
 
-describe("readTheme / writeTheme SSR guard (window undefined)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(() => {
-    originalWindow = globalThis.window;
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      writable: true,
-      value: originalWindow,
-    });
-  });
-
-  it("readTheme returns 'system' when window is undefined", () => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: undefined,
-    });
-    expect(readTheme()).toBe("system");
-  });
-
-  it("writeTheme is a no-op when window is undefined", () => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: undefined,
-    });
-    expect(() => writeTheme("dark")).not.toThrow();
-  });
-
-  it("effectiveTheme returns 'light' when window is undefined", () => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: undefined,
-    });
-    expect(effectiveTheme("system")).toBe("light");
-  });
-});
+// The window-undefined SSR guard branches (readTheme/writeTheme/effectiveTheme)
+// are covered in theme.ssr.test.ts, which runs under the "node" Jest
+// environment so `window` is genuinely absent rather than simulated by
+// redefining a jsdom global — see that file for why.
 
 /**
  * These tests mirror the logic of the pre-paint inline script embedded in

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useDebounce } from "@/lib/useDebounce";
 import { ErrorMessage } from "./ErrorMessage";
 import { Spinner } from "./Spinner";
@@ -21,7 +21,7 @@ type Props = {
 
 const ANNOUNCEMENT_DEBOUNCE_MS = 300;
 
-export function Pagination({
+function PaginationInner({
   page,
   pageCount,
   onChange,
@@ -42,6 +42,14 @@ export function Pagination({
     setPreviousAnnouncedPage(debouncedPage);
     setAnnouncement(pageCount > 1 ? `Page ${debouncedPage} of ${pageCount}` : "");
   }
+
+  const goToPrevious = useCallback(() => {
+    onChange(Math.max(1, page - 1));
+  }, [onChange, page]);
+
+  const goToNext = useCallback(() => {
+    onChange(Math.min(pageCount, page + 1));
+  }, [onChange, page, pageCount]);
 
   if (error) {
     return (
@@ -66,7 +74,7 @@ export function Pagination({
     <nav aria-label="Pagination" className="flex items-center justify-center gap-2 text-sm">
       <button
         type="button"
-        onClick={() => onChange(Math.max(1, page - 1))}
+        onClick={goToPrevious}
         disabled={page <= 1}
         className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
       >
@@ -80,7 +88,7 @@ export function Pagination({
       </span>
       <button
         type="button"
-        onClick={() => onChange(Math.min(pageCount, page + 1))}
+        onClick={goToNext}
         disabled={page >= pageCount}
         className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
       >
@@ -89,3 +97,10 @@ export function Pagination({
     </nav>
   );
 }
+
+/**
+ * Memoized so a parent re-rendering for unrelated state (e.g. a toast or
+ * theme change elsewhere on the page) does not force this component to
+ * re-render when its own props haven't changed.
+ */
+export const Pagination = memo(PaginationInner);

@@ -19,7 +19,7 @@ describe("Header", () => {
   it("renders a named navigation landmark", () => {
     render(<Header />);
     expect(
-      screen.getByRole("navigation", { name: /main navigation/i })
+      screen.getByRole("navigation", { name: /main navigation/i }),
     ).toBeInTheDocument();
   });
 
@@ -35,10 +35,10 @@ describe("Header", () => {
     render(<Header />);
     expect(screen.getByRole("link", { name: "Services" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
-      "aria-current"
+      "aria-current",
     );
   });
 
@@ -47,19 +47,19 @@ describe("Header", () => {
     render(<Header />);
     expect(screen.getByRole("link", { name: "Services" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
   });
 
   it("marks exactly one link as active for the root route", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
-    
+
     // Exactly one link has aria-current="page". The mobile menu panel is only
     // rendered while open, so at rest only the desktop "Home" link is active.
-    const activeLinks = screen.getAllByRole("link").filter(
-      (link) => link.getAttribute("aria-current") === "page"
-    );
+    const activeLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page");
     expect(activeLinks.length).toBe(1);
     expect(activeLinks[0]).toHaveTextContent("Home");
   });
@@ -67,24 +67,26 @@ describe("Header", () => {
   it("marks zero links as active for an unknown route", () => {
     mockPathname.mockReturnValue("/unknown-route-123");
     render(<Header />);
-    
-    const activeLinks = Array.from(document.querySelectorAll('[aria-current="page"]'));
+
+    const activeLinks = Array.from(
+      document.querySelectorAll('[aria-current="page"]'),
+    );
     expect(activeLinks.length).toBe(0);
   });
 
   it("validates exactly one primary/secondary logical link is marked current per route", () => {
     mockPathname.mockReturnValue("/services");
     render(<Header />);
-    
+
     // Open the secondary menu to expose secondary links
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
-    
+
     // With the mobile panel closed, the only current link is the desktop
     // "Services" primary link; the opened "More" menu holds secondary links,
     // none of which match /services.
-    const activeLinks = screen.getAllByRole("link", { hidden: true }).filter(
-      (link) => link.getAttribute("aria-current") === "page"
-    );
+    const activeLinks = screen
+      .getAllByRole("link", { hidden: true })
+      .filter((link) => link.getAttribute("aria-current") === "page");
 
     expect(activeLinks.length).toBe(1);
     expect(activeLinks[0]).toHaveTextContent("Services");
@@ -104,7 +106,15 @@ describe("Header", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
-    for (const label of ["API Keys", "Webhooks", "Events", "Stats", "Settings", "Docs", "Admin"]) {
+    for (const label of [
+      "API Keys",
+      "Webhooks",
+      "Events",
+      "Stats",
+      "Settings",
+      "Docs",
+      "Admin",
+    ]) {
       expect(screen.getByRole("menuitem", { name: label })).toBeInTheDocument();
     }
   });
@@ -115,7 +125,7 @@ describe("Header", () => {
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(screen.getByRole("menuitem", { name: "API Keys" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
   });
 
@@ -159,11 +169,15 @@ describe("Header", () => {
     const toggle = getMobileToggle();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("region", { name: /mobile navigation/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /mobile navigation/i }),
+    ).toBeInTheDocument();
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("region", { name: /mobile navigation/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /mobile navigation/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("mobile menu closes on Escape and returns focus to toggle", async () => {
@@ -191,7 +205,9 @@ describe("Header", () => {
     rerender(<Header />);
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("region", { name: /mobile navigation/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /mobile navigation/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("preserves focus-visible ring classes on links", () => {
@@ -223,7 +239,7 @@ describe("Header", () => {
 
     const toggle = getMobileToggle();
     fireEvent.click(toggle);
-    
+
     // Click a mobile menu link
     const region = screen.getByRole("region", { name: /mobile navigation/i });
     const homeLink = within(region).getByRole("link", { name: "Home" });
@@ -256,16 +272,16 @@ describe("Header", () => {
   it("desktop More menu does not close when focusing within the menu", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
-    
+
     // Open desktop More menu
     const moreBtn = screen.getByRole("button", { name: /more/i });
     fireEvent.click(moreBtn);
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    
+
     // Get menu element
     const menu = screen.getByRole("menu");
     const firstMenuItem = screen.getByRole("menuitem", { name: "API Keys" });
-    
+
     // Blur with relatedTarget still inside the menu
     fireEvent.blur(menu, {
       relatedTarget: firstMenuItem,
@@ -278,9 +294,62 @@ describe("Header", () => {
   it("keeps the wide-viewport navigation inline and the toggle mobile-only", () => {
     render(<Header />);
 
-    const desktopLinks = screen.getByRole("link", { name: "Home" }).closest("ul");
+    const desktopLinks = screen
+      .getByRole("link", { name: "Home" })
+      .closest("ul");
     expect(desktopLinks).toHaveClass("hidden", "md:flex");
     expect(getMobileToggle().parentElement).toHaveClass("md:hidden");
   });
-});
 
+  // --------------------------------------------------------------------
+  // Empty and error states
+  //
+  // Header has no fetch/loading lifecycle (its links are a static local
+  // list, not fetched data), so the closest genuine analogues are:
+  //   - "empty": the secondary-links menu having nothing to show
+  //   - "error"-adjacent: the current route matching no known nav entry
+  // --------------------------------------------------------------------
+  describe("empty and error states", () => {
+    // Note: `marks zero links as active for an unknown route` (above)
+    // already covers the desktop "unmatched route" case, and `shows More
+    // button that opens secondary menu` / `renders all secondary links
+    // inside the menu` already cover the desktop More affordance. These
+    // tests cover the gaps: the *mobile* panel's equivalents, which were
+    // untested.
+
+    it("renders the mobile 'More' section heading when there are secondary links", async () => {
+      render(<Header />);
+      const user = userEvent.setup();
+      await user.click(getMobileToggle());
+
+      const region = screen.getByRole("region", { name: /mobile navigation/i });
+      expect(within(region).getByText("More")).toBeInTheDocument();
+      expect(
+        within(region).getByRole("link", { name: "API Keys" }),
+      ).toBeInTheDocument();
+    });
+
+    it("does not crash and marks no link active on an unknown route in the mobile menu", async () => {
+      mockPathname.mockReturnValue("/also-unknown");
+      render(<Header />);
+      const user = userEvent.setup();
+      await user.click(getMobileToggle());
+
+      const region = screen.getByRole("region", { name: /mobile navigation/i });
+      const activeLinks = within(region)
+        .getAllByRole("link")
+        .filter((el) => el.getAttribute("aria-current") === "page");
+      expect(activeLinks).toHaveLength(0);
+
+      // The mobile panel still renders every link normally — an
+      // unmatched route degrades to "nothing highlighted", not a broken
+      // or partially-rendered menu.
+      expect(
+        within(region).getByRole("link", { name: "Home" }),
+      ).toBeInTheDocument();
+      expect(
+        within(region).getByRole("link", { name: "API Keys" }),
+      ).toBeInTheDocument();
+    });
+  });
+});

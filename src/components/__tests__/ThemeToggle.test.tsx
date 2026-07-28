@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ThemeToggle } from "../ThemeToggle";
 
 const mockMatchMedia = (matches: boolean) => {
@@ -23,6 +23,10 @@ describe("ThemeToggle", () => {
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
     mockMatchMedia(false);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("renders all theme options and marks the stored theme as active", async () => {
@@ -58,5 +62,43 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem("agentpay.theme")).toBe("system");
     expect(screen.getByRole("button", { name: "system" })).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement).toHaveClass("dark");
+  });
+
+  it("provides an empty polite live region without announcing on mount", () => {
+    jest.useFakeTimers();
+    window.localStorage.setItem("agentpay.theme", "dark");
+
+    render(<ThemeToggle />);
+
+    const liveRegion = screen.getByRole("status");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+    expect(liveRegion).toHaveAttribute("aria-atomic", "true");
+    expect(liveRegion).toHaveClass("sr-only");
+
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(liveRegion).toBeEmptyDOMElement();
+  });
+
+  it("debounces rapid changes and announces only the latest theme", () => {
+    jest.useFakeTimers();
+    render(<ThemeToggle />);
+    const liveRegion = screen.getByRole("status");
+
+    fireEvent.click(screen.getByRole("button", { name: "dark" }));
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "system" }));
+    act(() => {
+      jest.advanceTimersByTime(299);
+    });
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(liveRegion).toHaveTextContent("Theme set to system.");
   });
 });

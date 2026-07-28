@@ -17,9 +17,45 @@ type Props = {
   /** Called when the error state's retry action is activated. Only
    * rendered as a button when both `error` and `onRetry` are set. */
   onRetry?: () => void;
+  /** When true, renders First and Last jump buttons alongside Previous/Next. */
+  showFirstLast?: boolean;
+  /** Total result count. When provided with `pageSize`, a
+   * "showing X-Y of Z" summary is announced in the live region and shown
+   * visually next to the page indicator. */
+  totalItems?: number;
+  /** Items per page. Used with `totalItems` to compute the visible range. */
+  pageSize?: number;
 };
 
 const ANNOUNCEMENT_DEBOUNCE_MS = 300;
+
+const buttonClassName =
+  "rounded border border-zinc-300 px-3 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700";
+
+function resultRangeSummary(
+  page: number,
+  totalItems: number,
+  pageSize: number
+): string {
+  if (totalItems <= 0 || pageSize <= 0) {
+    return `showing 0-0 of ${Math.max(0, totalItems)}`;
+  }
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalItems);
+  return `showing ${start}-${end} of ${totalItems}`;
+}
+
+function buildAnnouncement(
+  page: number,
+  pageCount: number,
+  totalItems: number | undefined,
+  pageSize: number | undefined
+): string {
+  if (pageCount <= 1) return "";
+  const pagePart = `Page ${page} of ${pageCount}`;
+  if (totalItems === undefined || pageSize === undefined) return pagePart;
+  return `${pagePart}, ${resultRangeSummary(page, totalItems, pageSize)}`;
+}
 
 function PaginationInner({
   page,
@@ -28,6 +64,9 @@ function PaginationInner({
   loading = false,
   error = null,
   onRetry,
+  showFirstLast = false,
+  totalItems,
+  pageSize,
 }: Props) {
   // Debounce the announced page so rapid successive changes (e.g. fast
   // repeat clicks) collapse into a single announcement for the page the
@@ -40,8 +79,14 @@ function PaginationInner({
   // commit as each later debounced page change.
   if (debouncedPage !== previousAnnouncedPage) {
     setPreviousAnnouncedPage(debouncedPage);
-    setAnnouncement(pageCount > 1 ? `Page ${debouncedPage} of ${pageCount}` : "");
+    setAnnouncement(
+      buildAnnouncement(debouncedPage, pageCount, totalItems, pageSize)
+    );
   }
+
+  const goToFirst = useCallback(() => {
+    onChange(1);
+  }, [onChange]);
 
   const goToPrevious = useCallback(() => {
     onChange(Math.max(1, page - 1));
@@ -50,6 +95,10 @@ function PaginationInner({
   const goToNext = useCallback(() => {
     onChange(Math.min(pageCount, page + 1));
   }, [onChange, page, pageCount]);
+
+  const goToLast = useCallback(() => {
+    onChange(pageCount);
+  }, [onChange, pageCount]);
 
   if (error) {
     return (
@@ -70,18 +119,40 @@ function PaginationInner({
   }
 
   if (pageCount <= 1) return null;
+
+  const showResultCount =
+    totalItems !== undefined && pageSize !== undefined;
+  const visibleSummary = showResultCount
+    ? resultRangeSummary(page, totalItems, pageSize)
+    : null;
+
   return (
     <nav aria-label="Pagination" className="flex items-center justify-center gap-2 text-sm">
+      {showFirstLast ? (
+        <button
+          type="button"
+          onClick={goToFirst}
+          disabled={page <= 1}
+          className={buttonClassName}
+        >
+          First
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={goToPrevious}
         disabled={page <= 1}
-        className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
+        className={buttonClassName}
       >
         Previous
       </button>
       <span>
         Page {page} of {pageCount}
+        {visibleSummary ? (
+          <span className="ml-2 text-zinc-600 dark:text-zinc-400">
+            {visibleSummary}
+          </span>
+        ) : null}
       </span>
       <span aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
@@ -90,10 +161,20 @@ function PaginationInner({
         type="button"
         onClick={goToNext}
         disabled={page >= pageCount}
-        className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
+        className={buttonClassName}
       >
         Next
       </button>
+      {showFirstLast ? (
+        <button
+          type="button"
+          onClick={goToLast}
+          disabled={page >= pageCount}
+          className={buttonClassName}
+        >
+          Last
+        </button>
+      ) : null}
     </nav>
   );
 }

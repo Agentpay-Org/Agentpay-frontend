@@ -144,4 +144,17 @@ describe("DocsFilter", () => {
     expect(input.value).toBe("");
     expect(getLiveRegion(container)).toHaveTextContent("");
   });
+
+  it("shows a distinct empty state, with no search box, when there are no endpoints at all", () => {
+    render(<DocsFilter sections={[]} />);
+
+    expect(screen.getByText("No endpoints documented yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Check back soon, or see the API reference linked above.")
+    ).toBeInTheDocument();
+    // Distinct from the no-results-for-this-search state: no search box is
+    // offered, since no search term could produce a different outcome.
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("No matching endpoints")).not.toBeInTheDocument();
+  });
 });

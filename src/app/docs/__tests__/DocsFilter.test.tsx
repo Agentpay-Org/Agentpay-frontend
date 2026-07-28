@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DocsFilter } from "../DocsFilter";
 import { getSections } from "../endpoints";
 
@@ -143,5 +144,50 @@ describe("DocsFilter", () => {
     }
     expect(input.value).toBe("");
     expect(getLiveRegion(container)).toHaveTextContent("");
+  });
+
+  it("is reachable and operable entirely by keyboard: type, then Tab to and activate Clear", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const { container } = render(<DocsFilter sections={sections} />);
+
+    await user.tab();
+    const input = getSearchInput();
+    expect(input).toHaveFocus();
+
+    await user.keyboard("/api/v1/settle");
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(screen.getByText("POST /api/v1/settle")).toBeInTheDocument();
+    expect(screen.queryByText("POST /api/v1/usage")).not.toBeInTheDocument();
+
+    await user.tab();
+    const clearButton = screen.getByRole("button", { name: "Clear search" });
+    expect(clearButton).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(input.value).toBe("");
+    // Clearing returns focus to the input (SearchBar's own behavior).
+    expect(input).toHaveFocus();
+    for (const section of sections) {
+      expect(screen.getByText(section.h)).toBeInTheDocument();
+    }
+    expect(getLiveRegion(container)).toHaveTextContent("");
+  });
+
+  it("shows a distinct empty state, with no search box, when there are no endpoints at all", () => {
+    render(<DocsFilter sections={[]} />);
+
+    expect(screen.getByText("No endpoints documented yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Check back soon, or see the API reference linked above.")
+    ).toBeInTheDocument();
+    // Distinct from the no-results-for-this-search state: no search box is
+    // offered, since no search term could produce a different outcome.
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("No matching endpoints")).not.toBeInTheDocument();
   });
 });

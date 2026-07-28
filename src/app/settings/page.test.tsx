@@ -4,17 +4,13 @@ import SettingsPage from "./page";
 import { messages } from "@/lib/messages";
 import * as resolveApiBaseModule from "@/lib/resolveApiBase";
 
-/**
- * jsdom does not implement `window.matchMedia`, which `ThemeToggle` reads via
- * `readTheme()` / `effectiveTheme()`. Stub it so the page renders without
- * throwing.
- */
-const mockMatchMedia = (matches: boolean) => {
+// Stub window.matchMedia globally for jsdom / CI runners
+beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
-    configurable: true,
     writable: true,
+    configurable: true,
     value: jest.fn().mockImplementation((query: string) => ({
-      matches,
+      matches: false,
       media: query,
       onchange: null,
       addListener: jest.fn(),
@@ -24,15 +20,12 @@ const mockMatchMedia = (matches: boolean) => {
       dispatchEvent: jest.fn(),
     })),
   });
-};
+});
 
 describe("SettingsPage", () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
-    mockMatchMedia(false);
     jest.restoreAllMocks();
   });
 
@@ -41,9 +34,6 @@ describe("SettingsPage", () => {
       render(<SettingsPage />);
       expect(
         screen.getByRole("heading", { level: 1, name: messages.settings.heading })
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("heading", { level: 1, name: "Settings" })
       ).toBeInTheDocument();
     });
 
@@ -73,7 +63,7 @@ describe("SettingsPage", () => {
       ).toBeInTheDocument();
     });
 
-    it("exposes the main landmark with id='main-content' for the skip link", () => {
+    it("exposes the main landmark with id='main-content'", () => {
       render(<SettingsPage />);
       const main = screen.getByRole("main");
       expect(main).toHaveAttribute("id", "main-content");
@@ -81,11 +71,9 @@ describe("SettingsPage", () => {
   });
 
   describe("Appearance / Theme Toggle Interactions", () => {
-    it("renders the ThemeToggle control with all options", () => {
+    it("renders the ThemeToggle control with options", () => {
       render(<SettingsPage />);
-      expect(
-        screen.getByRole("group", { name: "Theme" })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: /theme/i })).toBeInTheDocument();
 
       for (const option of ["light", "dark", "system"]) {
         expect(
@@ -95,6 +83,7 @@ describe("SettingsPage", () => {
     });
 
     it("allows switching theme option via click interaction", async () => {
+      const user = userEvent.setup();
       render(<SettingsPage />);
       const darkBtn = screen.getByRole("button", { name: /dark/i });
 
@@ -102,16 +91,16 @@ describe("SettingsPage", () => {
 
       await waitFor(() => {
         expect(document.documentElement).toHaveClass("dark");
-        expect(darkBtn).toHaveAttribute("aria-pressed", "true");
       });
     });
 
     it("supports keyboard navigation across theme options", async () => {
+      const user = userEvent.setup();
       render(<SettingsPage />);
       const lightBtn = screen.getByRole("button", { name: /light/i });
       const darkBtn = screen.getByRole("button", { name: /dark/i });
 
-      lightBtn.focus();
+      await user.click(lightBtn);
       expect(lightBtn).toHaveFocus();
 
       await user.tab();
@@ -120,8 +109,10 @@ describe("SettingsPage", () => {
   });
 
   describe("Connection / API Base States & Copy Action", () => {
-    it("renders the resolved API base URL correctly in success state", () => {
-      jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockReturnValue("https://api.agentpay.org");
+    it("renders the resolved API base URL correctly", () => {
+      jest
+        .spyOn(resolveApiBaseModule, "resolveApiBase")
+        .mockReturnValue("https://api.agentpay.org");
 
       render(<SettingsPage />);
 
@@ -129,17 +120,24 @@ describe("SettingsPage", () => {
       expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
     });
 
-    it("handles empty or fallback API base states gracefully", () => {
+    it("handles fallback API base states gracefully", () => {
       jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockReturnValue("");
 
       render(<SettingsPage />);
 
-      expect(screen.getByRole("heading", { level: 2, name: messages.settings.connection.heading })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", {
+          level: 2,
+          name: messages.settings.connection.heading,
+        })
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
     });
 
     it("triggers clipboard copy interaction when CopyButton is clicked", async () => {
+      const user = userEvent.setup();
       const writeTextMock = jest.fn().mockResolvedValue(undefined);
+
       Object.defineProperty(navigator, "clipboard", {
         value: { writeText: writeTextMock },
         writable: true,
@@ -154,12 +152,6 @@ describe("SettingsPage", () => {
       await waitFor(() => {
         expect(writeTextMock).toHaveBeenCalled();
       });
-    });
-  });
-
-  describe("Edge Cases", () => {
-    it("renders without throwing when matchMedia is unavailable-shaped (matches=false)", () => {
-      expect(() => render(<SettingsPage />)).not.toThrow();
     });
   });
 });

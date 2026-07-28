@@ -19,14 +19,45 @@ accessible, and easy to review.
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
-| none | - | - | Renders the AgentPay brand link and the main navigation links. |
+| none | - | - | Renders the AgentPay brand link, the primary nav, the "More" secondary-links menu, and the mobile disclosure menu. Reads the current route via `usePathname()` internally — nothing to pass in. |
 
-Use `Header` once in the app shell. It already exposes the nav with
-`aria-label="Main navigation"` and focus-visible styles on each link.
+Use `Header` once in the app shell. It reads its own link list from two
+module-level constants (not props):
+
+- **`primaryLinks`** — always visible on `md+` viewports: Home, Services,
+  Agents, Usage, Search.
+- **`secondaryLinks`** — grouped behind a "More" menu on desktop and a
+  "More" section in the mobile panel: API Keys, Webhooks, Events, Stats,
+  Settings, Docs, Admin.
+
+To add or remove a nav entry, edit these arrays directly in `Header.tsx` —
+there is currently no prop-driven way to override them per page.
 
 ```tsx
 <Header />
 ```
+
+**Active-link logic:** a link is "active" (`aria-current="page"`) when the
+current path equals its `href` exactly, or — for every `href` except `/` —
+when the current path starts with `href + "/"`. This means a nested route
+like `/services/abc/edit` marks the `Services` link active, not just an
+exact `/services` match. A route matching no known link marks nothing
+active; this is not treated as an error, just "no highlight."
+
+**Responsive behavior:**
+- **Desktop (`md+`)**: primary links render inline; secondary links are
+  behind a "More" `aria-haspopup="menu"` button that opens a `role="menu"`
+  dropdown, closing on outside blur (`onBlur` checking `relatedTarget`) or
+  on route change.
+- **Mobile (below `md`)**: a single "Menu" disclosure button
+  (`aria-expanded`/`aria-controls`) opens a `role="region"` panel
+  (`aria-label="Mobile navigation"`) listing every primary link, then a
+  "More" heading, then every secondary link. Closes on **Escape** (returning
+  focus to the toggle button) or on route change.
+
+**Accessibility:** the `<nav>` has `aria-label="Main navigation"`; every
+link and the "More" button/menu items carry `focus-visible` ring styles
+matching the rest of the design system.
 
 ### `Footer`
 

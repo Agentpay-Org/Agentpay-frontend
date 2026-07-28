@@ -11,10 +11,17 @@ export function DocsFilter({ sections }: { sections: ApiSection[] }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
-  const filteredSections = sections.filter(
-    (s) =>
-      s.h.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      s.p.toLowerCase().includes(debouncedQuery.toLowerCase())
+  // Memoized so typing before the debounce settles (which re-renders this
+  // component on every keystroke via `query`) doesn't re-filter `sections`
+  // until the value actually driving the filter — `debouncedQuery` — changes.
+  const filteredSections = useMemo(
+    () =>
+      sections.filter(
+        (s) =>
+          s.h.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+          s.p.toLowerCase().includes(debouncedQuery.toLowerCase())
+      ),
+    [sections, debouncedQuery]
   );
 
   const announcement = useMemo(() => {

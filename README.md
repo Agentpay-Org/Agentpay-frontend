@@ -128,7 +128,7 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/services/:serviceId/edit`   | Edit service price with prefill loading, dirty-guard, and success toast | `GET /api/v1/services/:serviceId` (prefill), `PATCH /api/v1/services/:serviceId/price` (submit)                                                |
 | `/services/new`               | Create service                               | `POST /api/v1/services`                                                                                                                           |
 | `/settings`                   | User/app settings (theme configuration and Connection section displaying the resolved API base URL) | _(static UI settings surface)_                                                                                                                    |
-| `/stats`                      | Statistics                                   | _(calls stats endpoints in code)_                                                                                                                 |
+| `/stats`                      | Statistics — see [docs/stats-page.md](docs/stats-page.md) | `GET /api/v1/stats`, polled every 5s via `usePolling`                                                                 |
 | `/usage`                      | Usage totals & settlement workflow           | `POST /api/v1/usage`, `GET /api/v1/usage/:agent/:serviceId`, `POST /api/v1/settle`                                                                |
 | `/webhooks`                   | Webhooks management                          | _(calls webhooks endpoints in code)_ and displays each webhook registration time relatively with an absolute timestamp tooltip                    |
 

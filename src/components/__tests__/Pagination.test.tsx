@@ -1,7 +1,21 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import { Pagination } from "../Pagination";
 
+function settle() {
+  act(() => {
+    jest.advanceTimersByTime(300);
+  });
+}
+
 describe("Pagination", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("renders nothing when there is only one page", () => {
     const onChange = jest.fn();
     const { container } = render(
@@ -20,7 +34,28 @@ describe("Pagination", () => {
     ).toBeEmptyDOMElement();
   });
 
-  it("announces the new page when the controlled page changes", () => {
+  it("does not announce before the debounce window elapses", () => {
+    const onChange = jest.fn();
+    const { container, rerender } = render(
+      <Pagination page={2} pageCount={5} onChange={onChange} />
+    );
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+
+    rerender(<Pagination page={3} pageCount={5} onChange={onChange} />);
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    act(() => {
+      jest.advanceTimersByTime(299);
+    });
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(liveRegion).toHaveTextContent("Page 3 of 5");
+  });
+
+  it("announces the settled page after the controlled page changes", () => {
     const onChange = jest.fn();
     const { container, rerender } = render(
       <Pagination page={2} pageCount={5} onChange={onChange} />
@@ -29,14 +64,42 @@ describe("Pagination", () => {
 
     expect(liveRegion).toHaveAttribute("aria-atomic", "true");
     expect(liveRegion).toHaveClass("sr-only");
+
     rerender(<Pagination page={3} pageCount={5} onChange={onChange} />);
+    settle();
     expect(liveRegion).toHaveTextContent("Page 3 of 5");
 
     rerender(<Pagination page={5} pageCount={5} onChange={onChange} />);
+    settle();
     expect(liveRegion).toHaveTextContent("Page 5 of 5");
 
     rerender(<Pagination page={1} pageCount={5} onChange={onChange} />);
+    settle();
     expect(liveRegion).toHaveTextContent("Page 1 of 5");
+  });
+
+  it("collapses rapid successive page changes into one announcement", () => {
+    const onChange = jest.fn();
+    const { container, rerender } = render(
+      <Pagination page={1} pageCount={5} onChange={onChange} />
+    );
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+
+    // Fire several changes in quick succession, each well inside the 300ms
+    // debounce window — only the final, settled page should be announced.
+    rerender(<Pagination page={2} pageCount={5} onChange={onChange} />);
+    act(() => {
+      jest.advanceTimersByTime(50);
+    });
+    rerender(<Pagination page={3} pageCount={5} onChange={onChange} />);
+    act(() => {
+      jest.advanceTimersByTime(50);
+    });
+    rerender(<Pagination page={4} pageCount={5} onChange={onChange} />);
+
+    expect(liveRegion).toBeEmptyDOMElement();
+    settle();
+    expect(liveRegion).toHaveTextContent("Page 4 of 5");
   });
 
   it("does not retain an announcement across the single-page state", () => {
@@ -46,14 +109,17 @@ describe("Pagination", () => {
     );
 
     rerender(<Pagination page={3} pageCount={5} onChange={onChange} />);
+    settle();
     expect(container.querySelector('[aria-live="polite"]')).toHaveTextContent(
       "Page 3 of 5"
     );
 
     rerender(<Pagination page={1} pageCount={1} onChange={onChange} />);
+    settle();
     expect(container.firstChild).toBeNull();
 
     rerender(<Pagination page={1} pageCount={5} onChange={onChange} />);
+    settle();
     expect(
       container.querySelector('[aria-live="polite"]')
     ).toBeEmptyDOMElement();

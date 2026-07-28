@@ -233,6 +233,11 @@ secrets, private keys, seed phrases, or passwords.
 | `pageCount` | `number` | yes | Total pages. Renders nothing when `pageCount <= 1`. |
 | `onChange` | `(next: number) => void` | yes | Called with the clamped next page. |
 
+Announces page changes to assistive tech via a polite, debounced `aria-live`
+region (`"Page N of pageCount"`). The announcement is debounced 300ms so
+rapid successive page changes collapse into a single announcement for the
+page the user settles on, and it stays empty on first mount.
+
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />
 ```

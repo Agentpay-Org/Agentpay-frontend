@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDebounce } from "@/lib/useDebounce";
 
 type Props = {
   page: number;
@@ -8,15 +9,21 @@ type Props = {
   onChange: (next: number) => void;
 };
 
+const ANNOUNCEMENT_DEBOUNCE_MS = 300;
+
 export function Pagination({ page, pageCount, onChange }: Props) {
-  const [previousPage, setPreviousPage] = useState(page);
+  // Debounce the announced page so rapid successive changes (e.g. fast
+  // repeat clicks) collapse into a single announcement for the page the
+  // user settles on, instead of queuing one per intermediate change.
+  const debouncedPage = useDebounce(page, ANNOUNCEMENT_DEBOUNCE_MS);
+  const [previousAnnouncedPage, setPreviousAnnouncedPage] = useState(debouncedPage);
   const [announcement, setAnnouncement] = useState("");
 
   // Keep the first committed live region empty, then update it in the same
-  // commit as each later controlled page change.
-  if (page !== previousPage) {
-    setPreviousPage(page);
-    setAnnouncement(pageCount > 1 ? `Page ${page} of ${pageCount}` : "");
+  // commit as each later debounced page change.
+  if (debouncedPage !== previousAnnouncedPage) {
+    setPreviousAnnouncedPage(debouncedPage);
+    setAnnouncement(pageCount > 1 ? `Page ${debouncedPage} of ${pageCount}` : "");
   }
 
   if (pageCount <= 1) return null;

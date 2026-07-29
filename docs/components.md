@@ -282,6 +282,11 @@ For the full prop table, state matrix, accessibility notes, and usage
 examples (including loading/error), see the
 [Pagination component contract](./pagination.md).
 
+Announces page changes to assistive tech via a polite, debounced `aria-live`
+region (`"Page N of pageCount"`). The announcement is debounced 300ms so
+rapid successive page changes collapse into a single announcement for the
+page the user settles on, and it stays empty on first mount.
+
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />
 

@@ -372,18 +372,44 @@ The component is wrapped with `React.memo` so it does not re-render (and re-anno
 
 ### `ToastProvider` and `useToast`
 
+Mount `<ToastProvider>` once, near the root of the app (it renders its own
+fixed-position stack alongside `children`, so it does not need to wrap every
+page individually — one instance in the root layout covers the whole app).
+
 | API | Type | Notes |
 | --- | --- | --- |
-| `ToastProvider` | `({ children }: { children: ReactNode }) => JSX.Element` | Wrap the app area that can show toast messages. |
-| `useToast` | `() => { push: (message: string, level?: "info" \| "error") => void }` | Throws if used outside the provider. |
-
-Info toasts use `role="status"` and error toasts use `role="alert"`.
+| `ToastProvider` | `({ children }: { children: ReactNode }) => JSX.Element` | Provides the `useToast()` context and renders the toast stack. |
+| `useToast` | `() => { push: (message: string, level?: ToastLevel) => void }` | Throws `"useToast must be used inside <ToastProvider>"` if called outside the provider. |
+| `ToastLevel` | `"info" \| "error" \| "success" \| "warning"` | `level` defaults to `"info"` when omitted. |
 
 ```tsx
 const { push } = useToast();
-push("Webhook saved");
+push("Webhook saved");              // info (default)
 push("Webhook failed", "error");
+push("Copied to clipboard", "success");
+push("Rate limit approaching", "warning");
 ```
+
+**Accessibility contract:**
+
+- `level: "error"` renders with `role="alert"` and `aria-live="assertive"` —
+  interrupts the current announcement. Every other level (`info`, `success`,
+  `warning`) renders with `role="status"` and `aria-live="polite"` — queued
+  behind whatever is currently being announced.
+- `aria-atomic="true"` is set on each toast individually (not on the stack
+  container), so a new toast is announced on its own rather than re-reading
+  every toast currently on screen.
+- Each toast has a real `<button aria-label="Dismiss notification: {message}">`
+  so keyboard and screen-reader users can remove it immediately instead of
+  waiting for the auto-dismiss timer.
+
+**Lifecycle:** a pushed toast auto-dismisses after 4 seconds (`AUTO_DISMISS_MS`,
+internal to the module — not currently configurable per call) unless dismissed
+manually first; dismissing early is safe and does not error when the timer
+later fires for an already-removed toast.
+
+**Multiple toasts** stack in push order and dismiss independently — removing
+one does not affect the others.
 
 ### `Tooltip`
 

@@ -267,6 +267,17 @@ describe("ServicesPage", () => {
     expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
   });
 
+  it("does not render the empty state while loading", () => {
+  apiGetMock.mockReturnValueOnce(new Promise(() => {}) as never);
+
+  renderServicesPage();
+
+  expect(screen.getByRole("status")).toBeInTheDocument();
+  expect(
+    screen.queryByText(/No services registered yet/i)
+  ).not.toBeInTheDocument();
+});
+
   it("shows the empty state with a New service action when there are no services", async () => {
     apiGetMock.mockResolvedValueOnce({
       services: [],

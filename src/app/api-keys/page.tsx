@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { TimeAgo } from "@/components/TimeAgo";
+import { useApiKeysAnnouncement } from "./useApiKeysAnnouncement";
 
 type KeyItem = {
   prefix: string;
@@ -124,6 +125,8 @@ export default function ApiKeysPage() {
   const revealToggleLabel = showFull ? "Hide full API key" : "Show full API key";
   const revealStateMessage = showFull ? "API key is visible" : "API key is hidden";
 
+  const listAnnouncement = useApiKeysAnnouncement(items, error);
+
   return (
     <PageShell>
       <ConfirmDialog
@@ -139,6 +142,22 @@ export default function ApiKeysPage() {
       />
 
       <h1 className="text-3xl font-semibold tracking-tight">API keys</h1>
+
+      {/*
+       * Debounced api-keys announcements for assistive tech. The region is
+       * mounted empty (so screen readers register it before the first change)
+       * and only subsequent meaningful count/empty changes are announced.
+       * Deliberately not role="status": the empty and loading states own that
+       * role, and a second one would make the page's status ambiguous.
+       */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="api-keys-announcer"
+      >
+        {listAnnouncement}
+      </span>
 
       <form onSubmit={onCreate} className="flex gap-2">
         <input

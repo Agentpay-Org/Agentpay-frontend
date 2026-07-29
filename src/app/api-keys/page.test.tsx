@@ -367,6 +367,80 @@ it("submits a new API key via keyboard interaction (Enter key)", async () => {
   expect(await screen.findByLabelText(/created api key/i)).toBeInTheDocument();
 });
 
+// --- polite live-region announcements (aria-live) ---
+
+it("mounts an empty polite live region so later changes are announced", async () => {
+  mockFetchSuccess();
+  render(<ApiKeysPage />);
+
+  const announcer = screen.getByTestId("api-keys-announcer");
+  expect(announcer).toHaveAttribute("aria-live", "polite");
+  expect(announcer).toHaveAttribute("aria-atomic", "true");
+  expect(announcer).toHaveClass("sr-only");
+  expect(announcer).toBeEmptyDOMElement();
+
+  // The first settled list is the baseline: still nothing announced.
+  await screen.findByText("my-key");
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
+});
+
+it("announces the new count after a key is revoked", async () => {
+  mockFetchSuccess();
+  render(<ApiKeysPage />);
+  await screen.findByText("my-key");
+
+  // Let the loaded list settle as the silent baseline first.
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
+
+  (globalThis.fetch as jest.Mock)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: async () => ({}),
+    } as unknown as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+    } as unknown as Response);
+
+  fireEvent.click(screen.getByRole("button", { name: /^revoke$/i }));
+  fireEvent.click(screen.getAllByRole("button", { name: /^revoke$/i })[0]);
+
+  await screen.findByText("No API keys yet");
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+
+  expect(screen.getByTestId("api-keys-announcer")).toHaveTextContent(
+    "No API keys",
+  );
+});
+
+it("keeps the live region silent when the initial load fails", async () => {
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 500,
+    text: async () => "server down",
+  } as unknown as Response);
+
+  render(<ApiKeysPage />);
+
+  // The role="alert" message already announces the failure; the polite region
+  // must not repeat it.
+  expect(await screen.findByRole("alert")).toHaveTextContent("Request failed");
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
+});
+
 it("shows the data table on successful load", async () => {
   mockFetchSuccess();
   render(<ApiKeysPage />);

@@ -17,6 +17,38 @@ The component maintains the following internal state to manage the lifecycle of 
 - `error`: `string | null` - The current error message from any failed API interactions (load, create, revoke).
 - `pendingRevoke`: `KeyItem | null` - The key currently selected for revocation, used to show the confirmation dialog.
 
+## Live-region announcements
+
+The view renders a visually-hidden `aria-live="polite"` region
+(`data-testid="api-keys-announcer"`) so screen-reader users hear when the key
+list actually changes. The text is produced by
+[`useApiKeysAnnouncement`](../src/app/api-keys/useApiKeysAnnouncement.ts).
+
+| Fetch state | Announcement key | Announced text |
+| --- | --- | --- |
+| Loading (`items === null`) | `idle` | *(silent)* |
+| Load/action error | `idle` | *(silent)* |
+| Loaded, no keys | `empty` | `No API keys` |
+| Loaded, one key | `count:1` | `1 API key` |
+| Loaded, N keys | `count:N` | `N API keys` |
+
+Behaviour notes for reviewers:
+
+- **Silent on mount.** The region is mounted empty so assistive tech registers
+  it before the first change, and the first settled state is kept as a silent
+  baseline. Only later changes are announced.
+- **Debounced (300ms).** Rapid successive updates — for example a revoke
+  followed immediately by a reload — collapse into a single announcement
+  instead of queueing one per update.
+- **Errors are not repeated.** Failures already render a `role="alert"`
+  message, which assistive tech announces on its own, so the polite region
+  stays silent to avoid double-speaking.
+- **Announcement keys are primitives.** `useDebounce` compares by identity, so
+  the state is flattened to a string (`count:3`) rather than an object; an
+  object would be a new reference each render and the timer would never settle.
+- The hook derives text only. It reads the existing `items` and `error` state
+  and does not change how keys are loaded, created, or revoked.
+
 ## Minimal usage example
 
 Because this is a route-level page component, it is not imported and rendered manually as a typical React component. It is accessed by navigating to its route:

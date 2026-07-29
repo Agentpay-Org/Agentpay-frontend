@@ -110,6 +110,18 @@ export default function AdminPage() {
     setConfirmOpen(true);
   }, []);
 
+  const onRetry = useCallback(() => {
+  void refreshStatus();
+}, [refreshStatus]);
+
+const onCancelConfirm = useCallback(() => {
+  setConfirmOpen(false);
+}, []);
+
+const onConfirmDialog = useCallback(() => {
+  void onConfirm();
+}, [onConfirm]);
+
   const statusVariant = paused ? "down" : "ok";
   const toggleButtonLabel = paused ? "Unpause" : "Pause";
   const statusAnnouncement = useAdminStatusAnnouncement(paused, fetchStatus);
@@ -151,7 +163,7 @@ export default function AdminPage() {
             action={
               <button
                 type="button"
-                onClick={() => void refreshStatus()}
+                onClick={onRetry}
                 className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-white dark:text-black"
               >
                 Retry
@@ -210,12 +222,8 @@ export default function AdminPage() {
           description={toggleState.confirmDescription}
           confirmLabel={toggleState.confirmLabel}
           cancelLabel="Cancel"
-          onConfirm={() => {
-            void onConfirm();
-          }}
-          onCancel={() => {
-            setConfirmOpen(false);
-          }}
+          onConfirm={onConfirmDialog}
+          onCancel={onCancelConfirm}
         />
       )}
 

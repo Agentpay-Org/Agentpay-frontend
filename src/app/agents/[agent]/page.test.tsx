@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { act } from "react";
 import AgentDetailPage from "./page";
 import { apiGet } from "@/lib/apiClient";
 
@@ -184,6 +185,44 @@ describe("AgentDetailPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Backend usage offline",
     );
+    expect(
+      screen.getByRole("button", { name: /try again/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("refetches usage when Try again is clicked after an error", async () => {
+    let usageCalls = 0;
+
+    apiGetMock.mockImplementation((path: string) => {
+      if (path.endsWith("/usage")) {
+        usageCalls += 1;
+        if (usageCalls === 1) {
+          return Promise.reject(new Error("Backend usage offline")) as never;
+        }
+        return Promise.resolve({
+          agent: "agent-retry",
+          items: [{ serviceId: "svc-retry", total: 3 }],
+        }) as never;
+      }
+      if (path.endsWith("/total")) {
+        return Promise.resolve({ total: 10 }) as never;
+      }
+      return Promise.reject(new Error(`unexpected: ${path}`)) as never;
+    });
+
+    renderPage("agent-retry");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Backend usage offline",
+    );
+
+    act(() => {
+      screen.getByRole("button", { name: /try again/i }).click();
+    });
+
+    expect(await screen.findByText("svc-retry")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(usageCalls).toBe(2);
   });
 
   it("hides the spinner after a usage error", async () => {

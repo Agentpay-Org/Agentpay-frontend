@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
@@ -39,7 +40,6 @@ export default function AgentDetailPage({
   }, [agent, encodedAgent]);
 
   const items = usageState.status === "ok" ? usageState.data.items : null;
-  const error = usageState.status === "error" ? usageState.error : null;
   const total = totalState?.agent === agent ? totalState.total : null;
 
   return (
@@ -68,10 +68,11 @@ export default function AgentDetailPage({
           <Spinner label="Loading usage" />
         </div>
       )}
-      {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
+      {usageState.status === "error" && (
+        <ErrorMessage
+          title={usageState.error}
+          onRetry={usageState.refetch}
+        />
       )}
       <p className="text-sm">
         Lifetime total:{" "}

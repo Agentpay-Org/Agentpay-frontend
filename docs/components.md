@@ -19,14 +19,45 @@ accessible, and easy to review.
 
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
-| none | - | - | Renders the AgentPay brand link and the main navigation links. |
+| none | - | - | Renders the AgentPay brand link, the primary nav, the "More" secondary-links menu, and the mobile disclosure menu. Reads the current route via `usePathname()` internally — nothing to pass in. |
 
-Use `Header` once in the app shell. It already exposes the nav with
-`aria-label="Main navigation"` and focus-visible styles on each link.
+Use `Header` once in the app shell. It reads its own link list from two
+module-level constants (not props):
+
+- **`primaryLinks`** — always visible on `md+` viewports: Home, Services,
+  Agents, Usage, Search.
+- **`secondaryLinks`** — grouped behind a "More" menu on desktop and a
+  "More" section in the mobile panel: API Keys, Webhooks, Events, Stats,
+  Settings, Docs, Admin.
+
+To add or remove a nav entry, edit these arrays directly in `Header.tsx` —
+there is currently no prop-driven way to override them per page.
 
 ```tsx
 <Header />
 ```
+
+**Active-link logic:** a link is "active" (`aria-current="page"`) when the
+current path equals its `href` exactly, or — for every `href` except `/` —
+when the current path starts with `href + "/"`. This means a nested route
+like `/services/abc/edit` marks the `Services` link active, not just an
+exact `/services` match. A route matching no known link marks nothing
+active; this is not treated as an error, just "no highlight."
+
+**Responsive behavior:**
+- **Desktop (`md+`)**: primary links render inline; secondary links are
+  behind a "More" `aria-haspopup="menu"` button that opens a `role="menu"`
+  dropdown, closing on outside blur (`onBlur` checking `relatedTarget`) or
+  on route change.
+- **Mobile (below `md`)**: a single "Menu" disclosure button
+  (`aria-expanded`/`aria-controls`) opens a `role="region"` panel
+  (`aria-label="Mobile navigation"`) listing every primary link, then a
+  "More" heading, then every secondary link. Closes on **Escape** (returning
+  focus to the toggle button) or on route change.
+
+**Accessibility:** the `<nav>` has `aria-label="Main navigation"`; every
+link and the "More" button/menu items carry `focus-visible` ring styles
+matching the rest of the design system.
 
 ### `Footer`
 
@@ -230,8 +261,26 @@ secrets, private keys, seed phrases, or passwords.
 | Prop | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `page` | `number` | yes | Current 1-based page. |
-| `pageCount` | `number` | yes | Total pages. Renders nothing when `pageCount <= 1`. |
+| `pageCount` | `number` | yes | Total pages. Renders nothing when `pageCount <= 1` (and neither `loading` nor `error` is set). |
 | `onChange` | `(next: number) => void` | yes | Called with the clamped next page. |
+| `loading` | `boolean` | no | Shows a `Spinner` in place of the nav controls, regardless of `pageCount`. Defaults to `false`. |
+| `error` | `string \| null` | no | Shows an `ErrorMessage` in place of the nav controls, regardless of `pageCount`. Takes precedence over `loading`. Defaults to `null`. |
+| `onRetry` | `() => void` | no | Retry handler passed through to the error state's "Try again" button. Only rendered when both `error` and `onRetry` are set. |
+| `showFirstLast` | `boolean` | no | When `true`, renders First and Last jump buttons that use the same disabled-state styling as Previous/Next. Defaults to `false`. |
+| `totalItems` | `number` | no | Total result count. Combined with `pageSize` to show and announce a `"showing X-Y of Z"` summary. |
+| `pageSize` | `number` | no | Items per page. Required together with `totalItems` for the result-count summary. |
+
+Render precedence is **error → loading → hidden (`pageCount <= 1`) → nav**.
+Announces page changes to assistive tech via a polite, debounced `aria-live`
+region (`"Page N of pageCount"`). When both `totalItems` and `pageSize` are
+set, the announcement also includes `"showing X-Y of Z"` (with `Y` clamped to
+`totalItems` on the last page). The announcement is debounced 300ms so
+rapid successive page changes collapse into a single announcement for the
+page the user settles on, and it stays empty on first mount.
+
+For the full prop table, state matrix, accessibility notes, and usage
+examples (including loading/error), see the
+[Pagination component contract](./pagination.md).
 
 Announces page changes to assistive tech via a polite, debounced `aria-live`
 region (`"Page N of pageCount"`). The announcement is debounced 300ms so
@@ -240,6 +289,15 @@ page the user settles on, and it stays empty on first mount.
 
 ```tsx
 <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+
+<Pagination
+  page={page}
+  pageCount={pageCount}
+  onChange={setPage}
+  showFirstLast
+  totalItems={totalItems}
+  pageSize={25}
+/>
 ```
 
 ### `ThemeToggle`
@@ -319,18 +377,44 @@ The component is wrapped with `React.memo` so it does not re-render (and re-anno
 
 ### `ToastProvider` and `useToast`
 
+Mount `<ToastProvider>` once, near the root of the app (it renders its own
+fixed-position stack alongside `children`, so it does not need to wrap every
+page individually — one instance in the root layout covers the whole app).
+
 | API | Type | Notes |
 | --- | --- | --- |
-| `ToastProvider` | `({ children }: { children: ReactNode }) => JSX.Element` | Wrap the app area that can show toast messages. |
-| `useToast` | `() => { push: (message: string, level?: "info" \| "error") => void }` | Throws if used outside the provider. |
-
-Info toasts use `role="status"` and error toasts use `role="alert"`.
+| `ToastProvider` | `({ children }: { children: ReactNode }) => JSX.Element` | Provides the `useToast()` context and renders the toast stack. |
+| `useToast` | `() => { push: (message: string, level?: ToastLevel) => void }` | Throws `"useToast must be used inside <ToastProvider>"` if called outside the provider. |
+| `ToastLevel` | `"info" \| "error" \| "success" \| "warning"` | `level` defaults to `"info"` when omitted. |
 
 ```tsx
 const { push } = useToast();
-push("Webhook saved");
+push("Webhook saved");              // info (default)
 push("Webhook failed", "error");
+push("Copied to clipboard", "success");
+push("Rate limit approaching", "warning");
 ```
+
+**Accessibility contract:**
+
+- `level: "error"` renders with `role="alert"` and `aria-live="assertive"` —
+  interrupts the current announcement. Every other level (`info`, `success`,
+  `warning`) renders with `role="status"` and `aria-live="polite"` — queued
+  behind whatever is currently being announced.
+- `aria-atomic="true"` is set on each toast individually (not on the stack
+  container), so a new toast is announced on its own rather than re-reading
+  every toast currently on screen.
+- Each toast has a real `<button aria-label="Dismiss notification: {message}">`
+  so keyboard and screen-reader users can remove it immediately instead of
+  waiting for the auto-dismiss timer.
+
+**Lifecycle:** a pushed toast auto-dismisses after 4 seconds (`AUTO_DISMISS_MS`,
+internal to the module — not currently configurable per call) unless dismissed
+manually first; dismissing early is safe and does not error when the timer
+later fires for an already-removed toast.
+
+**Multiple toasts** stack in push order and dismiss independently — removing
+one does not affect the others.
 
 ### `Tooltip`
 

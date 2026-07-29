@@ -11,19 +11,38 @@ export function DocsFilter({ sections }: { sections: ApiSection[] }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
-  const filteredSections = sections.filter(
-    (s) =>
-      s.h.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      s.p.toLowerCase().includes(debouncedQuery.toLowerCase())
+  // Memoized so typing before the debounce settles (which re-renders this
+  // component on every keystroke via `query`) doesn't re-filter `sections`
+  // until the value actually driving the filter — `debouncedQuery` — changes.
+  const filteredSections = useMemo(
+    () =>
+      sections.filter(
+        (s) =>
+          s.h.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+          s.p.toLowerCase().includes(debouncedQuery.toLowerCase())
+      ),
+    [sections, debouncedQuery]
   );
 
   const announcement = useMemo(() => {
-    if (!debouncedQuery) return "";
+    if (sections.length === 0 || !debouncedQuery) return "";
     const count = filteredSections.length;
     return count === 0
       ? `No matches for "${debouncedQuery}"`
       : `${count} result${count === 1 ? "" : "s"} for "${debouncedQuery}"`;
-  }, [debouncedQuery, filteredSections.length]);
+  }, [sections.length, debouncedQuery, filteredSections.length]);
+
+  // Distinct from "no results for this search": no endpoints were passed in
+  // at all, which is a content/configuration gap rather than something a
+  // different search term can fix, so searching isn't offered as a way out.
+  if (sections.length === 0) {
+    return (
+      <EmptyState
+        title="No endpoints documented yet"
+        description="Check back soon, or see the API reference linked above."
+      />
+    );
+  }
 
   return (
     <>

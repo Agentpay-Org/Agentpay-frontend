@@ -558,4 +558,53 @@ describe("StatsPage — defensive edge branches", () => {
     // The previous update (0 results) should have been skipped/overwritten, only the final update announced
     expect(liveRegion).toHaveTextContent("Stats updated: Backend is paused");
   });
+
+  it("announces meaningful stats changes via a debounced live region, avoiding initial mount, handling zero states", async () => {
+    const fetchMock = jest.fn(async () => jsonResponse(STATS)); // paused: true
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    const { container } = render(<StatsPage />);
+    
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    
+    // Initial data fetch
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => jest.advanceTimersByTime(500)); // debounce window
+    
+    // Should NOT announce on initial mount
+    expect(liveRegion).toHaveTextContent("");
+
+    // Simulate poll with changes (unpaused, updated counts)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, totalRequests: 17, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // Fast-forward partial debounce time
+    await act(async () => jest.advanceTimersByTime(200));
+    expect(liveRegion).toHaveTextContent("");
+
+    // Fast-forward remainder of debounce window
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(liveRegion).toHaveTextContent("Stats updated: 4 services, 8 API keys, 17 requests, 2 agents");
+
+    // Simulate zero-results state
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ totalServices: 0, totalApiKeys: 0, totalRequests: 0, uniqueAgents: 0, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    
+    // Rapid successive update (another update happens before the previous 500ms debounce completes)
+    // We can simulate this by resolving another fetch instantly, though usePolling is 5s.
+    // Instead we'll just wait 200ms, then trigger another state change by simulating a paused state fetch
+    await act(async () => jest.advanceTimersByTime(200));
+    
+    // Force a re-render with new data (simulating a rapid update perhaps from another source, or just we test debounce)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, paused: true }));
+    await act(async () => jest.advanceTimersByTime(5_000)); // wait for next poll
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    
+    await act(async () => jest.advanceTimersByTime(500));
+    // The previous update (0 results) should have been skipped/overwritten, only the final update announced
+    expect(liveRegion).toHaveTextContent("Stats updated: Backend is paused");
+  });
 });

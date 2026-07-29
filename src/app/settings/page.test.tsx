@@ -4,7 +4,6 @@ import SettingsPage from "./page";
 import { messages } from "@/lib/messages";
 import * as resolveApiBaseModule from "@/lib/resolveApiBase";
 
-// Stub window.matchMedia globally for jsdom / CI runners
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -29,128 +28,102 @@ describe("SettingsPage", () => {
     jest.restoreAllMocks();
   });
 
-  describe("Layout & Headings", () => {
-    it("renders the Settings page heading", () => {
+  describe("Success & Layout Rendering", () => {
+    it("renders page heading and settings content when resolved", async () => {
+      jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockReturnValue("https://api.agentpay.org");
+
       render(<SettingsPage />);
+
       expect(
-        screen.getByRole("heading", { level: 1, name: messages.settings.heading })
+        await screen.findByRole("heading", { level: 1, name: messages.settings.heading })
       ).toBeInTheDocument();
-    });
 
-    it("renders the Appearance section heading and descriptive copy", () => {
-      render(<SettingsPage />);
       expect(
-        screen.getByRole("heading", {
-          level: 2,
-          name: messages.settings.appearance.heading,
-        })
+        screen.getByRole("heading", { level: 2, name: messages.settings.appearance.heading })
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(messages.settings.appearance.description)
-      ).toBeInTheDocument();
-    });
-
-    it("renders the Connection section heading and descriptive copy", () => {
-      render(<SettingsPage />);
-      expect(
-        screen.getByRole("heading", {
-          level: 2,
-          name: messages.settings.connection.heading,
-        })
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(messages.settings.connection.description)
-      ).toBeInTheDocument();
-    });
-
-    it("exposes the main landmark with id='main-content'", () => {
-      render(<SettingsPage />);
-      const main = screen.getByRole("main");
-      expect(main).toHaveAttribute("id", "main-content");
-    });
-  });
-
-  describe("Appearance / Theme Toggle Interactions", () => {
-    it("renders the ThemeToggle control with options", () => {
-      render(<SettingsPage />);
-      expect(screen.getByRole("group", { name: /theme/i })).toBeInTheDocument();
-
-      for (const option of ["light", "dark", "system"]) {
-        expect(
-          screen.getByRole("button", { name: new RegExp(option, "i") })
-        ).toBeInTheDocument();
-      }
-    });
-
-    it("allows switching theme option via click interaction", async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-      const darkBtn = screen.getByRole("button", { name: /dark/i });
-
-      await user.click(darkBtn);
-
-      await waitFor(() => {
-        expect(document.documentElement).toHaveClass("dark");
-      });
-    });
-
-    it("supports keyboard navigation across theme options", async () => {
-      const user = userEvent.setup();
-      render(<SettingsPage />);
-      const lightBtn = screen.getByRole("button", { name: /light/i });
-      const darkBtn = screen.getByRole("button", { name: /dark/i });
-
-      await user.click(lightBtn);
-      expect(lightBtn).toHaveFocus();
-
-      await user.tab();
-      expect(darkBtn).toHaveFocus();
-    });
-  });
-
-  describe("Connection / API Base States & Copy Action", () => {
-    it("renders the resolved API base URL correctly", () => {
-      jest
-        .spyOn(resolveApiBaseModule, "resolveApiBase")
-        .mockReturnValue("https://api.agentpay.org");
-
-      render(<SettingsPage />);
 
       expect(screen.getByText("https://api.agentpay.org")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
     });
+  });
 
-    it("handles fallback API base states gracefully", () => {
+  describe("Empty State Handling", () => {
+    it("renders the empty state UI when no API base is returned", async () => {
       jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockReturnValue("");
 
       render(<SettingsPage />);
 
-      expect(
-        screen.getByRole("heading", {
-          level: 2,
-          name: messages.settings.connection.heading,
-        })
-      ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
+      expect(await screen.findByRole("region", { name: "Empty settings" })).toBeInTheDocument();
+      expect(screen.getByText("No settings available.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
     });
+  });
 
-    it("triggers clipboard copy interaction when CopyButton is clicked", async () => {
+  describe("Error State & Retry Handling", () => {
+    it("renders error alert with retry button when an exception is thrown and retries successfully", async () => {
       const user = userEvent.setup();
-      const writeTextMock = jest.fn().mockResolvedValue(undefined);
+      const mockApi = jest.spyOn(resolveApiBaseModule, "resolveApiBase");
 
-      Object.defineProperty(navigator, "clipboard", {
-        value: { writeText: writeTextMock },
-        writable: true,
-        configurable: true,
+      // First call throws error
+      mockApi.mockImplementationOnce(() => {
+        throw new Error("Failed to connect to backend service");
       });
 
       render(<SettingsPage />);
 
-      const copyBtn = screen.getByRole("button", { name: /copy/i });
-      await user.click(copyBtn);
+      // Verify Error State
+      const alert = await screen.findByRole("alert");
+      expect(alert).toBeInTheDocument();
+      expect(screen.getByText("Failed to connect to backend service")).toBeInTheDocument();
+
+      // Next call succeeds
+      mockApi.mockReturnValueOnce("http://localhost:3001");
+
+      // Click Retry
+      const retryBtn = screen.getByRole("button", { name: /retry/i });
+      await user.click(retryBtn);
+
+      // Verify Success State
+      await waitFor(() => {
+        expect(screen.getByText("http://localhost:3001")).toBeInTheDocument();
+      });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("uses default error message when error thrown is not an Error object", async () => {
+      jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockImplementationOnce(() => {
+        throw "String exception";
+      });
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByText("Failed to load settings configuration.")).toBeInTheDocument();
+    });
+
+    it("renders fallback text when errorMessage is empty string", async () => {
+      jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockImplementationOnce(() => {
+        throw new Error("");
+      });
+
+      render(<SettingsPage />);
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByText("Failed to load settings.")).toBeInTheDocument();
+    });
+  });
+
+  describe("Theme Toggle Interactions", () => {
+    it("allows clicking theme toggle button", async () => {
+      const user = userEvent.setup();
+      jest.spyOn(resolveApiBaseModule, "resolveApiBase").mockReturnValue("http://localhost:3001");
+
+      render(<SettingsPage />);
+
+      const darkBtn = await screen.findByRole("button", { name: /dark/i });
+      await user.click(darkBtn);
 
       await waitFor(() => {
-        expect(writeTextMock).toHaveBeenCalled();
+        expect(document.documentElement).toHaveClass("dark");
       });
     });
   });

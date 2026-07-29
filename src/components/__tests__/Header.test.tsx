@@ -19,7 +19,7 @@ describe("Header", () => {
   it("renders a named navigation landmark", () => {
     render(<Header />);
     expect(
-      screen.getByRole("navigation", { name: /main navigation/i })
+      screen.getByRole("navigation", { name: /main navigation/i }),
     ).toBeInTheDocument();
   });
 
@@ -35,10 +35,10 @@ describe("Header", () => {
     render(<Header />);
     expect(screen.getByRole("link", { name: "Services" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
-      "aria-current"
+      "aria-current",
     );
   });
 
@@ -47,19 +47,19 @@ describe("Header", () => {
     render(<Header />);
     expect(screen.getByRole("link", { name: "Services" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
   });
 
   it("marks exactly one link as active for the root route", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
-    
+
     // Exactly one link has aria-current="page". The mobile menu panel is only
     // rendered while open, so at rest only the desktop "Home" link is active.
-    const activeLinks = screen.getAllByRole("link").filter(
-      (link) => link.getAttribute("aria-current") === "page"
-    );
+    const activeLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page");
     expect(activeLinks.length).toBe(1);
     expect(activeLinks[0]).toHaveTextContent("Home");
   });
@@ -67,24 +67,26 @@ describe("Header", () => {
   it("marks zero links as active for an unknown route", () => {
     mockPathname.mockReturnValue("/unknown-route-123");
     render(<Header />);
-    
-    const activeLinks = Array.from(document.querySelectorAll('[aria-current="page"]'));
+
+    const activeLinks = Array.from(
+      document.querySelectorAll('[aria-current="page"]'),
+    );
     expect(activeLinks.length).toBe(0);
   });
 
   it("validates exactly one primary/secondary logical link is marked current per route", () => {
     mockPathname.mockReturnValue("/services");
     render(<Header />);
-    
+
     // Open the secondary menu to expose secondary links
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
-    
+
     // With the mobile panel closed, the only current link is the desktop
     // "Services" primary link; the opened "More" menu holds secondary links,
     // none of which match /services.
-    const activeLinks = screen.getAllByRole("link", { hidden: true }).filter(
-      (link) => link.getAttribute("aria-current") === "page"
-    );
+    const activeLinks = screen
+      .getAllByRole("link", { hidden: true })
+      .filter((link) => link.getAttribute("aria-current") === "page");
 
     expect(activeLinks.length).toBe(1);
     expect(activeLinks[0]).toHaveTextContent("Services");
@@ -104,7 +106,15 @@ describe("Header", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
-    for (const label of ["API Keys", "Webhooks", "Events", "Stats", "Settings", "Docs", "Admin"]) {
+    for (const label of [
+      "API Keys",
+      "Webhooks",
+      "Events",
+      "Stats",
+      "Settings",
+      "Docs",
+      "Admin",
+    ]) {
       expect(screen.getByRole("menuitem", { name: label })).toBeInTheDocument();
     }
   });
@@ -115,7 +125,7 @@ describe("Header", () => {
     fireEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(screen.getByRole("menuitem", { name: "API Keys" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
   });
 
@@ -159,11 +169,15 @@ describe("Header", () => {
     const toggle = getMobileToggle();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("region", { name: /mobile navigation/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /mobile navigation/i }),
+    ).toBeInTheDocument();
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("region", { name: /mobile navigation/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /mobile navigation/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("mobile menu closes on Escape and returns focus to toggle", async () => {
@@ -191,7 +205,9 @@ describe("Header", () => {
     rerender(<Header />);
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("region", { name: /mobile navigation/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /mobile navigation/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("preserves focus-visible ring classes on links", () => {
@@ -223,7 +239,7 @@ describe("Header", () => {
 
     const toggle = getMobileToggle();
     fireEvent.click(toggle);
-    
+
     // Click a mobile menu link
     const region = screen.getByRole("region", { name: /mobile navigation/i });
     const homeLink = within(region).getByRole("link", { name: "Home" });
@@ -256,16 +272,16 @@ describe("Header", () => {
   it("desktop More menu does not close when focusing within the menu", () => {
     mockPathname.mockReturnValue("/");
     render(<Header />);
-    
+
     // Open desktop More menu
     const moreBtn = screen.getByRole("button", { name: /more/i });
     fireEvent.click(moreBtn);
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    
+
     // Get menu element
     const menu = screen.getByRole("menu");
     const firstMenuItem = screen.getByRole("menuitem", { name: "API Keys" });
-    
+
     // Blur with relatedTarget still inside the menu
     fireEvent.blur(menu, {
       relatedTarget: firstMenuItem,
@@ -278,9 +294,100 @@ describe("Header", () => {
   it("keeps the wide-viewport navigation inline and the toggle mobile-only", () => {
     render(<Header />);
 
-    const desktopLinks = screen.getByRole("link", { name: "Home" }).closest("ul");
+    const desktopLinks = screen
+      .getByRole("link", { name: "Home" })
+      .closest("ul");
     expect(desktopLinks).toHaveClass("hidden", "md:flex");
     expect(getMobileToggle().parentElement).toHaveClass("md:hidden");
   });
-});
 
+  // --------------------------------------------------------------------
+  // Route-change announcements
+  //
+  // A Next.js App Router navigation swaps content without a full document
+  // reload, so nothing tells a screen reader user a new page loaded unless
+  // the app says so explicitly. These tests cover the visually-hidden
+  // live region that announces each client-side transition.
+  // --------------------------------------------------------------------
+  describe("route change announcements", () => {
+    it("renders a polite status live region", () => {
+      render(<Header />);
+      const region = screen.getByRole("status", { hidden: true });
+      expect(region).toHaveAttribute("aria-live", "polite");
+      expect(region).toHaveClass("sr-only");
+    });
+
+    it("does not announce anything on initial mount", () => {
+      mockPathname.mockReturnValue("/");
+      render(<Header />);
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "",
+      );
+    });
+
+    it("announces the destination's primary-link label on a client-side route change", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/services");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Services",
+      );
+    });
+
+    it("announces the destination's secondary-link label on a client-side route change", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/webhooks");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Webhooks",
+      );
+    });
+
+    it("announces the parent link's label for a nested child route", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/services/abc-123/edit");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Services",
+      );
+    });
+
+    it("falls back to the raw pathname for a route with no matching nav entry", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/this-route-is-unknown");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to /this-route-is-unknown",
+      );
+    });
+
+    it("announces every transition in a multi-step navigation, not just the first", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/agents");
+      rerender(<Header />);
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Agents",
+      );
+
+      mockPathname.mockReturnValue("/usage");
+      rerender(<Header />);
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Usage",
+      );
+    });
+  });
+});

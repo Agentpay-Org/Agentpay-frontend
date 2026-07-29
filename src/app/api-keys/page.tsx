@@ -1,7 +1,7 @@
 "use client";
 
 import { PageShell } from "@/components/PageShell";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -17,29 +17,49 @@ type KeyItem = {
   createdAt?: number | string | null;
 };
 
-const columns: DataTableColumn<KeyItem>[] = [
-  {
-    key: "label",
-    header: "Label",
-    sortable: true,
-    sortAccessor: (r) => r.label.toLowerCase(),
-    render: (r) => r.label,
-  },
-  {
-    key: "prefix",
-    header: "Prefix",
-    sortable: true,
-    sortAccessor: (r) => r.prefix,
-    render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
-  },
-  {
-    key: "createdAt",
-    header: "Created",
-    sortable: true,
-    sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
-    render: (r) => <TimeAgo ts={toTimestampMs(r.createdAt) ?? 0} />,
-  },
-];
+function buildColumns(
+  onRevoke: (key: KeyItem) => void,
+): DataTableColumn<KeyItem>[] {
+  return [
+    {
+      key: "label",
+      header: "Label",
+      sortable: true,
+      sortAccessor: (r) => r.label.toLowerCase(),
+      render: (r) => r.label,
+    },
+    {
+      key: "prefix",
+      header: "Prefix",
+      sortable: true,
+      sortAccessor: (r) => r.prefix,
+      render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      sortable: true,
+      sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
+      render: (r) => {
+        const ts = toTimestampMs(r.createdAt);
+        return ts === null ? <span title="—">—</span> : <TimeAgo ts={ts} />;
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (r) => (
+        <button
+          type="button"
+          className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium hover:bg-zinc-100"
+          onClick={() => onRevoke(r)}
+        >
+          Revoke
+        </button>
+      ),
+    },
+  ];
+}
 
 function toTimestampMs(value: KeyItem["createdAt"]): number | null {
   if (value === null || value === undefined) return null;
@@ -55,6 +75,8 @@ export default function ApiKeysPage() {
   const [showFull, setShowFull] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
+
+  const columns = useMemo(() => buildColumns(setPendingRevoke), []);
 
   const load = () =>
     apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
@@ -151,6 +173,7 @@ export default function ApiKeysPage() {
             >
               {showFull ? "Hide" : "Show"}
             </button>
+            <CopyButton value={created} />
           </div>
           <p aria-live="polite" aria-atomic="true" className="sr-only">
             {revealStateMessage}

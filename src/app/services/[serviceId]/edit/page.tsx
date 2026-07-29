@@ -28,37 +28,31 @@ export default function EditServicePage({
   const [originalPrice, setOriginalPrice] = useState<string | null>(null);
 
   /**
-   * Tracks whether the price field differs from the originally-fetched value.
-   * Used by the unsaved-changes guard to decide whether to warn before
-   * navigation.
+   * Whether the price field differs from the originally-fetched value.
+   * Derived during render (not stored in state) so it stays in sync without a
+   * setState-in-effect. Used by the unsaved-changes guard.
    */
-  const [dirty, setDirty] = useState(false);
+  const dirty = originalPrice !== null && price !== originalPrice;
 
   useEffect(() => {
-    setPrefillLoading(true);
-    setPrefillError(null);
-    apiGet<Service>(`/api/v1/services/${encodeURIComponent(serviceId)}`)
-      .then((s) => {
+    const load = async () => {
+      setPrefillLoading(true);
+      setPrefillError(null);
+      try {
+        const s = await apiGet<Service>(
+          `/api/v1/services/${encodeURIComponent(serviceId)}`,
+        );
         const prefilled = String(s.priceStroops);
         setPrice(prefilled);
         setOriginalPrice(prefilled);
-      })
-      .catch((e) => {
-        setPrefillError(e.message);
-      })
-      .finally(() => {
+      } catch (e) {
+        setPrefillError((e as Error).message);
+      } finally {
         setPrefillLoading(false);
-      });
+      }
+    };
+    void load();
   }, [serviceId]);
-
-  /*
-   * Dirty-tracking effect: compares the current price value against the
-   * originally-fetched value and updates the `dirty` flag.
-   */
-  useEffect(() => {
-    if (originalPrice === null) return;
-    setDirty(price !== originalPrice);
-  }, [price, originalPrice]);
 
   /*
    * beforeunload guard: registers a `beforeunload` event on the window
@@ -96,7 +90,7 @@ export default function EditServicePage({
         `/api/v1/services/${encodeURIComponent(serviceId)}/price`,
         { priceStroops: parsed.value }
       );
-      setDirty(false);
+      setOriginalPrice(price);
       toast.push("Price updated.", "info");
       router.push(`/services/${encodeURIComponent(serviceId)}`);
     } catch (err) {

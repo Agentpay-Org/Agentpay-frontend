@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import ApiKeysPage from "./page";
 
 const FAKE_KEY = "sk_live_abc123secretvalue";
@@ -22,8 +23,9 @@ function mockFetchSuccess() {
 beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(BASE_TIME);
-  Object.assign(navigator, {
-    clipboard: { writeText: jest.fn().mockResolvedValue(undefined) },
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: jest.fn().mockResolvedValue(undefined) },
   });
 });
 
@@ -338,3 +340,40 @@ it("does not show a copy action when key creation fails", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Request failed");
   expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
 });
+
+it("does not show empty state or data table while loading (loading exclusivity)", () => {
+  let resolve: (val: unknown) => void;
+  globalThis.fetch = jest.fn().mockReturnValue(
+    new Promise((res) => {
+      resolve = res;
+    })
+  );
+  render(<ApiKeysPage />);
+  
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  
+  resolve({ ok: true, status: 200, json: async () => ({ items: [] }) });
+});
+
+it("submits a new API key via keyboard interaction (Enter key)", async () => {
+  const user = userEvent.setup({ delay: null });
+  mockFetchCreate();
+  render(<ApiKeysPage />);
+  
+  const input = screen.getByLabelText("Label");
+  await user.type(input, "my-new-key{Enter}");
+  
+  expect(await screen.findByLabelText(/created api key/i)).toBeInTheDocument();
+});
+
+it("shows the data table on successful load", async () => {
+  mockFetchSuccess();
+  render(<ApiKeysPage />);
+  
+  expect(await screen.findByText("my-key")).toBeInTheDocument();
+  
+  expect(screen.getByRole("table", { name: /api keys/i })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /label/i })).toBeInTheDocument();
+});
+

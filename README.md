@@ -171,6 +171,8 @@ See [docs/components.md](docs/components.md) for the shared component catalog,
 including prop tables, usage examples, and accessibility notes for the
 primitives in `src/components`. For the pagination control specifically, see
 [docs/pagination.md](docs/pagination.md) for its props, render states, and
+minimal usage examples. For the filters component specifically, see
+[docs/filters.md](docs/filters.md) for its props, render states, and
 minimal usage examples.
 
 ## Shared hooks

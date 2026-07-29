@@ -268,7 +268,7 @@ export default function EventsPage() {
         </p>
       </div>
 
-      <ErrorMessage title="Failed to load events" detail={error} />
+      {error && <ErrorMessage title="Failed to load events" detail={error} />}
 
       {loading && !error && (
         <div role="status" aria-busy="true" className="flex justify-center py-10">

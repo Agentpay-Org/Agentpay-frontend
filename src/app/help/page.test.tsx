@@ -55,4 +55,21 @@ describe("HelpPage state rendering", () => {
     expect(screen.getByText("How to use")).toBeInTheDocument();
     expect(screen.getByText("Instructions here.")).toBeInTheDocument();
   });
+
+  it("memoizes to prevent needless re-renders", () => {
+    (useApi as jest.Mock).mockReturnValue({ status: "loading" });
+    
+    const Wrapper = ({ forceRender }: { forceRender: number }) => (
+      <div data-force={forceRender}>
+        <HelpPage />
+      </div>
+    );
+
+    const { rerender } = render(<Wrapper forceRender={1} />);
+    expect((useApi as jest.Mock)).toHaveBeenCalledTimes(1);
+
+    rerender(<Wrapper forceRender={2} />);
+    // The render count (and thus useApi call count) should remain 1
+    expect((useApi as jest.Mock)).toHaveBeenCalledTimes(1);
+  });
 });

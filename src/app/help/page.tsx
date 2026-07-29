@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import { useApi } from "@/lib/useApi";
 import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
@@ -9,7 +10,7 @@ import { PageHeading } from "@/components/PageHeading";
 
 type HelpTopic = { id: string; title: string; content: string };
 
-export default function HelpPage() {
+const HelpPage = memo(function HelpPage() {
   const state = useApi<{ topics: HelpTopic[] }>("/api/v1/help");
 
   return (
@@ -45,4 +46,6 @@ export default function HelpPage() {
       )}
     </PageShell>
   );
-}
+});
+
+export default HelpPage;

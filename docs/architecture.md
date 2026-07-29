@@ -52,7 +52,7 @@ Segments may define their own `layout.tsx` (invariably thin wrappers that return
 |------|-----------|-------------|-------------------------|------------------------------|
 | `/` | Home | Server (no `"use client"`) | None — static landing with quick-link navigation | Root layout; title `AgentPay` (root default) |
 | `/about` | About | Server (no `"use client"`) | None — static surface overview | Root layout; title `About — AgentPay` (exported from `page.tsx`) |
-| `/admin` | Admin | Client (`"use client"`) | `GET /api/v1/admin/status`; `POST /api/v1/admin/pause`; `POST /api/v1/admin/unpause` | `admin/layout.tsx`; title `Admin` (`pageTitles.admin`) |
+| `/admin` | Admin — see [docs/admin-page.md](./admin-page.md) | Client (`"use client"`) | `GET /api/v1/admin/status`; `POST /api/v1/admin/pause`; `POST /api/v1/admin/unpause` | `admin/layout.tsx`; title `Admin` (`pageTitles.admin`) |
 | `/agents` | Agents | Client (`"use client"`) | `GET /api/v1/stats`; `GET /api/v1/agents?page=N&limit=25` | `agents/layout.tsx`; title `Agents` (`pageTitles.agents`) |
 | `/agents/:agent` | Agent detail | Client (`"use client"`) | `GET /api/v1/agents/:agent/usage`; `GET /api/v1/agents/:agent/total` | `agents/[agent]/layout.tsx`; title `Agent <agent>` (`agentTitle`) |
 | `/api-keys` | API keys | Client (`"use client"`) | `GET /api/v1/api-keys`; `POST /api/v1/api-keys`; `DELETE /api/v1/api-keys/:prefix` | `api-keys/layout.tsx`; title `API keys` (`pageTitles.apiKeys`) |

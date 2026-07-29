@@ -121,6 +121,7 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/docs` | Short API endpoint reference — see [docs/docs-page.md](docs/docs-page.md) | `GET /api/v1/openapi.json` plus the prose list rendered from `src/app/docs/page.tsx` (usage, settle, services, admin pause/unpause), filterable via a debounced search input. Each endpoint includes a copyable curl example. |
 | `/events`                     | Event log renderer                           | _(reads events stream/poll via `/api/v1/events` endpoints in code)_                                                                               |
 | `/export`                     | Export data                                  | _(calls export endpoints in code)_                                                                                                                |
+| `/help`                       | Help topics list — see [docs/help-page.md](docs/help-page.md) | `GET /api/v1/help`                                                                                                                |
 | `/search`                     | Global search                                | _(calls search endpoint in code)_                                                                                                                 |
 | `/services`                   | Services list                                | `GET /api/v1/services` _(and/or list related endpoints in code)_                                                                                  |
 | `/services/:serviceId`        | Service details                              | `GET /api/v1/services/:serviceId` _(plus nested reads in code)_                                                                                   |
@@ -378,6 +379,7 @@ When rendering links:
 | `/docs` | Docs |
 | `/events` | Event log |
 | `/export` | Export |
+| `/help` | Help |
 | `/search` | Search |
 | `/services` | Services |
 | `/services/:serviceId` | Service detail |

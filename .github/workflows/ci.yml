@@ -85,6 +85,14 @@ jobs:
             let bundleLines = [];
             if (fs.existsSync(bundlePath)) {
               const report = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+              if (report.skipped) {
+                bundleLines = [
+                  '',
+                  '## 📦 Bundle Budget Report',
+                  '',
+                  `⚠️ **Skipped** — ${report.reason ?? 'no per-route sizes in build output'}`,
+                ];
+              } else {
               const s = report.summary;
               let verdict;
               if (!report.pass) {
@@ -123,6 +131,7 @@ jobs:
                 '',
                 '> Budget file: `bundle-budgets.json`. Raise a budget by editing it in a dedicated PR.',
               ];
+              }
             }
 
             const body = [...coverageLines, ...bundleLines].join('\n');

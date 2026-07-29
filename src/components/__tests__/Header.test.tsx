@@ -302,54 +302,92 @@ describe("Header", () => {
   });
 
   // --------------------------------------------------------------------
-  // Empty and error states
+  // Route-change announcements
   //
-  // Header has no fetch/loading lifecycle (its links are a static local
-  // list, not fetched data), so the closest genuine analogues are:
-  //   - "empty": the secondary-links menu having nothing to show
-  //   - "error"-adjacent: the current route matching no known nav entry
+  // A Next.js App Router navigation swaps content without a full document
+  // reload, so nothing tells a screen reader user a new page loaded unless
+  // the app says so explicitly. These tests cover the visually-hidden
+  // live region that announces each client-side transition.
   // --------------------------------------------------------------------
-  describe("empty and error states", () => {
-    // Note: `marks zero links as active for an unknown route` (above)
-    // already covers the desktop "unmatched route" case, and `shows More
-    // button that opens secondary menu` / `renders all secondary links
-    // inside the menu` already cover the desktop More affordance. These
-    // tests cover the gaps: the *mobile* panel's equivalents, which were
-    // untested.
-
-    it("renders the mobile 'More' section heading when there are secondary links", async () => {
+  describe("route change announcements", () => {
+    it("renders a polite status live region", () => {
       render(<Header />);
-      const user = userEvent.setup();
-      await user.click(getMobileToggle());
-
-      const region = screen.getByRole("region", { name: /mobile navigation/i });
-      expect(within(region).getByText("More")).toBeInTheDocument();
-      expect(
-        within(region).getByRole("link", { name: "API Keys" }),
-      ).toBeInTheDocument();
+      const region = screen.getByRole("status", { hidden: true });
+      expect(region).toHaveAttribute("aria-live", "polite");
+      expect(region).toHaveClass("sr-only");
     });
 
-    it("does not crash and marks no link active on an unknown route in the mobile menu", async () => {
-      mockPathname.mockReturnValue("/also-unknown");
+    it("does not announce anything on initial mount", () => {
+      mockPathname.mockReturnValue("/");
       render(<Header />);
-      const user = userEvent.setup();
-      await user.click(getMobileToggle());
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "",
+      );
+    });
 
-      const region = screen.getByRole("region", { name: /mobile navigation/i });
-      const activeLinks = within(region)
-        .getAllByRole("link")
-        .filter((el) => el.getAttribute("aria-current") === "page");
-      expect(activeLinks).toHaveLength(0);
+    it("announces the destination's primary-link label on a client-side route change", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
 
-      // The mobile panel still renders every link normally — an
-      // unmatched route degrades to "nothing highlighted", not a broken
-      // or partially-rendered menu.
-      expect(
-        within(region).getByRole("link", { name: "Home" }),
-      ).toBeInTheDocument();
-      expect(
-        within(region).getByRole("link", { name: "API Keys" }),
-      ).toBeInTheDocument();
+      mockPathname.mockReturnValue("/services");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Services",
+      );
+    });
+
+    it("announces the destination's secondary-link label on a client-side route change", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/webhooks");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Webhooks",
+      );
+    });
+
+    it("announces the parent link's label for a nested child route", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/services/abc-123/edit");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Services",
+      );
+    });
+
+    it("falls back to the raw pathname for a route with no matching nav entry", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/this-route-is-unknown");
+      rerender(<Header />);
+
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to /this-route-is-unknown",
+      );
+    });
+
+    it("announces every transition in a multi-step navigation, not just the first", () => {
+      mockPathname.mockReturnValue("/");
+      const { rerender } = render(<Header />);
+
+      mockPathname.mockReturnValue("/agents");
+      rerender(<Header />);
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Agents",
+      );
+
+      mockPathname.mockReturnValue("/usage");
+      rerender(<Header />);
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Navigated to Usage",
+      );
     });
   });
 });

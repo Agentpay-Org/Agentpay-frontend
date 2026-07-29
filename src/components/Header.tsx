@@ -27,6 +27,29 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+const allLinks = [...primaryLinks, ...secondaryLinks];
+
+/**
+ * Resolve a human-readable label for `pathname`, mirroring {@link isActive}'s
+ * matching rules: an exact `href` match wins outright; otherwise the
+ * longest (most specific) prefix match wins, so a nested route like
+ * `/services/abc/edit` resolves to "Services" rather than any shorter
+ * ancestor. Returns `null` for a route that matches nothing in the nav —
+ * callers fall back to the raw pathname in that case.
+ */
+function findLinkLabel(pathname: string): string | null {
+  const exact = allLinks.find((l) => l.href === pathname);
+  if (exact) return exact.label;
+
+  const prefixMatches = allLinks.filter(
+    (l) => l.href !== "/" && pathname.startsWith(l.href + "/"),
+  );
+  if (prefixMatches.length === 0) return null;
+  return prefixMatches.reduce((longest, l) =>
+    l.href.length > longest.href.length ? l : longest,
+  ).label;
+}
+
 const linkClass =
   "rounded px-2 py-1 text-sm hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-800";
 const activeLinkClass = "font-semibold text-blue-600 dark:text-blue-400";
@@ -147,6 +170,8 @@ export function Header() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [routeAnnouncement, setRouteAnnouncement] = useState("");
+  const isFirstRender = useRef(true);
 
   // Close desktop dropdown on route change.
   useEffect(() => {
@@ -155,8 +180,27 @@ export function Header() {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Announce client-side route changes to assistive tech. A Next.js App
+  // Router navigation swaps page content without a full document reload,
+  // so — unlike a traditional multi-page site — nothing tells a screen
+  // reader user a new page loaded unless something explicitly says so.
+  // Skips the very first render (the initial page load) since the browser
+  // already handles that announcement via the document title; only
+  // *subsequent* client-side transitions need this.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const label = findLinkLabel(pathname);
+    setRouteAnnouncement(`Navigated to ${label ?? pathname}`);
+  }, [pathname]);
+
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
+      <div role="status" aria-live="polite" className="sr-only">
+        {routeAnnouncement}
+      </div>
       <nav
         aria-label="Main navigation"
         className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 p-4"

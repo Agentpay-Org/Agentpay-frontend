@@ -75,53 +75,7 @@ export default function ApiKeysPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
   
-  const columns = useMemo<DataTableColumn<KeyItem>[]>(
-    () => [
-      {
-        key: "label",
-        header: "Label",
-        sortable: true,
-        sortAccessor: (r) => r.label.toLowerCase(),
-        render: (r) => r.label,
-      },
-      {
-        key: "prefix",
-        header: "Prefix",
-        sortable: true,
-        sortAccessor: (r) => r.prefix,
-        render: (r) => <code className="font-mono text-xs">{r.prefix}*</code>,
-      },
-      {
-        key: "createdAt",
-        header: "Created",
-        sortable: true,
-        sortAccessor: (r) => toTimestampMs(r.createdAt) ?? 0,
-        render: (r) => {
-          const ms = toTimestampMs(r.createdAt);
-          return ms !== null ? <TimeAgo ts={ms} /> : <span title="—">—</span>;
-        },
-      },
-      {
-        key: "actions",
-        header: "",
-        render: (r) => (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setPendingRevoke(r)}
-              className="rounded border border-zinc-300 px-3 py-1 text-xs hover:border-rose-500 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700"
-            >
-              Revoke
-            </button>
-          </div>
-        ),
-      },
-    ],
-    []
-  );
-
   const tableData = useMemo(() => items ?? [], [items]);
-
   const columns = useMemo(() => buildColumns(setPendingRevoke), []);
 
   const load = () =>
@@ -210,7 +164,6 @@ export default function ApiKeysPage() {
             <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
-            <CopyButton value={created} />
             <button
               type="button"
               aria-controls="created-api-key"

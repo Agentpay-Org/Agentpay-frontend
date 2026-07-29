@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageShell } from "@/components/PageShell";
 import { messages } from "@/lib/messages";
@@ -10,10 +10,31 @@ import { CopyButton } from "@/components/CopyButton";
 
 type SettingsState = "loading" | "error" | "empty" | "success";
 
+function computeInitialSettings(): {
+  status: SettingsState;
+  apiBase: string;
+  errorMessage: string;
+} {
+  try {
+    const base = resolveApiBase();
+    return base
+      ? { status: "success", apiBase: base, errorMessage: "" }
+      : { status: "empty", apiBase: "", errorMessage: "" };
+  } catch (err) {
+    return {
+      status: "error",
+      apiBase: "",
+      errorMessage:
+        err instanceof Error ? err.message : "Failed to load settings configuration.",
+    };
+  }
+}
+
 export default function SettingsPage() {
-  const [status, setStatus] = useState<SettingsState>("loading");
-  const [apiBase, setApiBase] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [initial] = useState(computeInitialSettings);
+  const [status, setStatus] = useState<SettingsState>(initial.status);
+  const [apiBase, setApiBase] = useState<string>(initial.apiBase);
+  const [errorMessage, setErrorMessage] = useState<string>(initial.errorMessage);
 
   const loadSettings = useCallback(() => {
     setStatus("loading");
@@ -33,10 +54,6 @@ export default function SettingsPage() {
       setStatus("error");
     }
   }, []);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
 
   return (
     <PageShell maxWidth="2xl" gap="8">

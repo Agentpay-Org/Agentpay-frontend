@@ -5,7 +5,6 @@ import { ErrorMessage } from "@/components/ErrorMessage";
 import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
 import { TimeAgo } from "@/components/TimeAgo";
-import { useDebounce } from "@/lib/useDebounce";
 import { usePolling } from "@/lib/usePolling";
 
 type Stats = {
@@ -41,9 +40,6 @@ export default function StatsPage() {
 
   return (
     <PageShell>
-      <div aria-live="polite" className="sr-only">
-        {announcement}
-      </div>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
 
       {/*

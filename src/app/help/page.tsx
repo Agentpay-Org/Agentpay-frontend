@@ -16,34 +16,36 @@ const HelpPage = memo(function HelpPage() {
   return (
     <PageShell>
       <PageHeading title="Help" />
-      {state.status === "loading" && (
-        <div className="flex justify-center py-10" data-testid="help-loading">
-          <Spinner label="Loading help topics" />
-        </div>
-      )}
-      {state.status === "error" && (
-        <div data-testid="help-error">
-          <ErrorMessage title="Failed to load help topics" detail={state.error} />
-        </div>
-      )}
-      {state.status === "ok" && state.data.topics.length === 0 && (
-        <div data-testid="help-empty">
-          <EmptyState
-            title="No help topics found."
-            description="Check back later for new guides and tutorials."
-          />
-        </div>
-      )}
-      {state.status === "ok" && state.data.topics.length > 0 && (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" data-testid="help-success">
-          {state.data.topics.map((topic) => (
-            <li key={topic.id} className="py-4">
-              <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">{topic.title}</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{topic.content}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div aria-live="polite">
+        {state.status === "loading" && (
+          <div className="flex justify-center py-10" data-testid="help-loading">
+            <Spinner label="Loading help topics" />
+          </div>
+        )}
+        {state.status === "error" && (
+          <div data-testid="help-error">
+            <ErrorMessage title="Failed to load help topics" detail={state.error} onRetry={state.retry} />
+          </div>
+        )}
+        {state.status === "ok" && state.data.topics.length === 0 && (
+          <div data-testid="help-empty">
+            <EmptyState
+              title="No help topics found."
+              description="Check back later for new guides and tutorials."
+            />
+          </div>
+        )}
+        {state.status === "ok" && state.data.topics.length > 0 && (
+          <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" data-testid="help-success">
+            {state.data.topics.map((topic) => (
+              <li key={topic.id} className="py-4">
+                <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">{topic.title}</h2>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{topic.content}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </PageShell>
   );
 });

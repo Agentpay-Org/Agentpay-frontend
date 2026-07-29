@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import HelpPage from "./page";
 import { useApi } from "@/lib/useApi";
 
@@ -32,6 +32,24 @@ describe("HelpPage state rendering", () => {
     expect(screen.getByTestId("help-error")).toBeInTheDocument();
     expect(screen.getByText("Failed to load help topics")).toBeInTheDocument();
     expect(screen.getByText("Internal Error")).toBeInTheDocument();
+  });
+
+  it("calls retry function when retry button is clicked", () => {
+    const mockRetry = jest.fn();
+    (useApi as jest.Mock).mockReturnValue({
+      status: "error",
+      error: "Internal Error",
+      errorKind: "generic",
+      isTimeout: false,
+      isRateLimited: false,
+      retryAfterMs: null,
+      retry: mockRetry,
+    });
+    render(<HelpPage />);
+    
+    const retryButton = screen.getByRole("button", { name: "Try again" });
+    fireEvent.click(retryButton);
+    expect(mockRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders correctly for empty state", () => {

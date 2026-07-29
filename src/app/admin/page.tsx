@@ -10,6 +10,7 @@ import { PageShell } from "@/components/PageShell";
 import { StatusDot } from "@/components/StatusDot";
 import { useToast } from "@/components/ToastProvider";
 import { usePolling } from "@/lib/usePolling";
+import { useAdminStatusAnnouncement } from "./useAdminStatusAnnouncement";
 
 type AdminStatus = { paused: boolean };
 
@@ -111,13 +112,27 @@ export default function AdminPage() {
 
   const statusVariant = paused ? "down" : "ok";
   const toggleButtonLabel = paused ? "Unpause" : "Pause";
+  const statusAnnouncement = useAdminStatusAnnouncement(paused, fetchStatus);
 
   return (
     <PageShell maxWidth="xl">
       <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
 
       {/*
-       * aria-live="polite" announces state transitions to screen readers
+       * Debounced status announcements for assistive tech. Empty on mount;
+       * only subsequent meaningful status/empty changes are announced.
+       */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="admin-status-announcer"
+      >
+        {statusAnnouncement}
+      </span>
+
+      {/*
+       * aria-live="polite" announces loading / empty / error panel transitions
        * without interrupting ongoing speech.
        */}
       <div aria-live="polite" aria-atomic="true">

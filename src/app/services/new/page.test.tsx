@@ -151,10 +151,14 @@ describe("NewServicePage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
 
     await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
-        serviceId: "test-service",
-        priceStroops: 100,
-      });
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/api/v1/services",
+        {
+          serviceId: "test-service",
+          priceStroops: 100,
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
     });
 
     await waitFor(() => {
@@ -176,10 +180,14 @@ describe("NewServicePage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
 
     await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
-        serviceId: "existing-service",
-        priceStroops: 50,
-      });
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/api/v1/services",
+        {
+          serviceId: "existing-service",
+          priceStroops: 50,
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
     });
 
     // Check page-level alert
@@ -262,10 +270,14 @@ describe("NewServicePage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
 
     await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
-        serviceId: "free-svc",
-        priceStroops: 0,
-      });
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/api/v1/services",
+        {
+          serviceId: "free-svc",
+          priceStroops: 0,
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
     });
 
     await waitFor(() => {
@@ -282,10 +294,14 @@ describe("NewServicePage", () => {
     fireEvent.submit(screen.getByRole("button", { name: /register service/i }));
 
     await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith("/api/v1/services", {
-        serviceId: "",
-        priceStroops: 50,
-      });
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/api/v1/services",
+        {
+          serviceId: "",
+          priceStroops: 50,
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
     });
   });
 

@@ -312,6 +312,61 @@ describe("AdminPage — accessible success state", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Debounced status live-region announcements
+// ---------------------------------------------------------------------------
+
+describe("AdminPage — status live region", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("renders an empty polite sr-only announcer without speaking the initial status", async () => {
+    mockFetchSequence([{ ok: true, status: 200, json: { paused: false } }]);
+    renderWithToast(<AdminPage />);
+
+    await screen.findByText(/Live/i);
+
+    const announcer = screen.getByTestId("admin-status-announcer");
+    expect(announcer).toHaveAttribute("aria-live", "polite");
+    expect(announcer).toHaveAttribute("aria-atomic", "true");
+    expect(announcer).toHaveClass("sr-only");
+    expect(announcer).toBeEmptyDOMElement();
+  });
+
+  it("announces a status change after pause confirms and the debounce settles", async () => {
+    jest.useFakeTimers({ doNotFake: ["queueMicrotask", "nextTick"] });
+
+    mockFetchSequence([
+      { ok: true, status: 200, json: { paused: false } },
+      { ok: true, status: 204 },
+      { ok: true, status: 200, json: { paused: true } },
+    ]);
+
+    renderWithToast(<AdminPage />);
+    await screen.findByText(/Live/i);
+
+    const announcer = screen.getByTestId("admin-status-announcer");
+    // Let the initial status settle as the silent baseline.
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(announcer).toBeEmptyDOMElement();
+
+    openPauseConfirm();
+    const pauseButtons = screen.getAllByRole("button", { name: /^Pause$/i });
+    fireEvent.click(pauseButtons[pauseButtons.length - 1]);
+
+    await screen.findByText(/Paused/i);
+    expect(announcer).toBeEmptyDOMElement();
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+    expect(announcer).toHaveTextContent("Admin status: Paused");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Existing pause/unpause flows (non-regression)
 // ---------------------------------------------------------------------------
 

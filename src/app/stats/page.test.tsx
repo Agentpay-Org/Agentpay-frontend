@@ -1,6 +1,19 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { usePolling } from "@/lib/usePolling";
 
 import StatsPage from "./page";
+
+jest.mock("@/lib/usePolling", () => {
+  const actual = jest.requireActual("@/lib/usePolling") as typeof import("@/lib/usePolling");
+  return {
+    ...actual,
+    usePolling: jest.fn(actual.usePolling),
+  };
+});
+
+const mockedUsePolling = usePolling as jest.MockedFunction<typeof usePolling>;
 
 const START_TIME = new Date("2026-07-22T10:00:00.000Z");
 const STATS = {
@@ -63,8 +76,7 @@ describe("StatsPage polling", () => {
 
     render(<StatsPage />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    const pause = screen.getByRole("button", { name: /pause polling/i });
+    const pause = await screen.findByRole("button", { name: /pause polling/i });
     expect(pause).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(pause);
 
@@ -118,5 +130,481 @@ describe("StatsPage polling", () => {
     expect(lastUpdatedTime()).toHaveAttribute("datetime", successfulTimestamp);
     expect(screen.getByText(/backend is currently paused/i)).toBeInTheDocument();
     expect(screen.getAllByRole("definition")).toHaveLength(4);
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("Try again on a stale poll failure re-fetches successfully", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ...STATS, paused: false }))
+      .mockResolvedValueOnce(jsonResponse({ message: "stats unavailable" }, 503))
+      .mockResolvedValue(jsonResponse({ ...STATS, paused: false }));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    render(<StatsPage />);
+    await waitFor(() => expect(screen.getAllByRole("definition")).toHaveLength(4));
+
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Loading / empty / error fetch states
+// ---------------------------------------------------------------------------
+
+describe("StatsPage — loading state", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("shows a loading spinner while the initial fetch is in flight", async () => {
+    let resolveFirst!: (value: Response) => void;
+    const firstPending = new Promise<Response>((r) => {
+      resolveFirst = r;
+    });
+
+    globalThis.fetch = jest.fn().mockReturnValueOnce(firstPending) as unknown as typeof fetch;
+
+    render(<StatsPage />);
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByText(/loading stats/i)).toBeInTheDocument();
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no stats available/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst(jsonResponse(STATS));
+    });
+  });
+
+  it("hides the loading spinner once data arrives", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse(STATS)) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText("Services");
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("StatsPage — error state", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("renders the error EmptyState when the initial fetch fails", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("Network error")) as unknown as typeof fetch;
+
+    render(<StatsPage />);
+
+    expect(await screen.findByText(/could not load stats/i)).toBeInTheDocument();
+    expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+  });
+
+  it("renders a keyboard-operable Retry button inside the error state", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("Network error")) as unknown as typeof fetch;
+
+    render(<StatsPage />);
+    await screen.findByText(/could not load stats/i);
+
+    const retryBtn = screen.getByRole("button", { name: /retry/i });
+    expect(retryBtn).toBeInTheDocument();
+    expect(retryBtn.tagName.toLowerCase()).toBe("button");
+    expect(retryBtn).not.toBeDisabled();
+  });
+
+  it("Retry re-fetches and recovers to the stats grid", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("Network error"))
+      .mockResolvedValue(jsonResponse(STATS));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<StatsPage />);
+    await screen.findByText(/could not load stats/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    await screen.findByText("Services");
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("definition")).toHaveLength(4);
+  });
+
+  it("supports keyboard activation of Retry", async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("Network error"))
+      .mockResolvedValue(jsonResponse(STATS));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<StatsPage />);
+    await screen.findByText(/could not load stats/i);
+
+    const retryBtn = screen.getByRole("button", { name: /retry/i });
+    retryBtn.focus();
+    await user.keyboard("{Enter}");
+
+    await screen.findByText("Services");
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+  });
+
+  it("error state is announced to assistive tech via aria-live", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("down")) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/could not load stats/i);
+
+    const liveRegion = screen
+      .getByText(/could not load stats/i)
+      .closest("[aria-live]");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+    expect(liveRegion).toHaveAttribute("aria-atomic", "true");
+  });
+
+  it("error state is distinct from loading state", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("oops")) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/could not load stats/i);
+
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+  });
+
+  it("error state does not render the stats grid", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("oops")) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/could not load stats/i);
+
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pause polling/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("StatsPage — empty state", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("renders the empty EmptyState when fetch succeeds but payload has no stats fields", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    expect(await screen.findByText(/no stats available/i)).toBeInTheDocument();
+  });
+
+  it("renders a keyboard-operable Refresh button inside the empty state", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/no stats available/i);
+
+    const refreshBtn = screen.getByRole("button", { name: /refresh/i });
+    expect(refreshBtn).toBeInTheDocument();
+    expect(refreshBtn.tagName.toLowerCase()).toBe("button");
+    expect(refreshBtn).not.toBeDisabled();
+  });
+
+  it("Refresh in empty state re-fetches and recovers", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValue(jsonResponse(STATS));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<StatsPage />);
+    await screen.findByText(/no stats available/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+
+    await screen.findByText("Services");
+    expect(screen.queryByText(/no stats available/i)).not.toBeInTheDocument();
+  });
+
+  it("empty state is announced to assistive tech via aria-live", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/no stats available/i);
+
+    const liveRegion = screen
+      .getByText(/no stats available/i)
+      .closest("[aria-live]");
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+    expect(liveRegion).toHaveAttribute("aria-atomic", "true");
+  });
+
+  it("empty state is distinct from error state", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/no stats available/i);
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+  });
+
+  it("empty state is distinct from loading state", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/no stats available/i);
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("StatsPage — state exclusivity", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("shows exactly one of: loading / error / empty / stats grid at a time (ok)", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse(STATS)) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText("Services");
+
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no stats available/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows exactly one of: loading / error / empty / stats grid at a time (error)", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("fail")) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/could not load stats/i);
+
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no stats available/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+  });
+
+  it("shows exactly one of: loading / error / empty / stats grid at a time (empty)", async () => {
+    globalThis.fetch = jest.fn(async () => jsonResponse({})) as unknown as typeof fetch;
+    render(<StatsPage />);
+
+    await screen.findByText(/no stats available/i);
+
+    expect(screen.queryByText(/loading stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not load stats/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+  });
+});
+
+describe("StatsPage — defensive edge branches", () => {
+  const actualUsePolling = (
+    jest.requireActual("@/lib/usePolling") as typeof import("@/lib/usePolling")
+  ).usePolling;
+
+  afterEach(() => {
+    mockedUsePolling.mockImplementation(actualUsePolling);
+  });
+
+  it("falls back when an error has no detail message", () => {
+    mockedUsePolling.mockReturnValue({
+      status: "error",
+      data: null,
+      error: null,
+      lastUpdated: null,
+      paused: false,
+      pause: jest.fn(),
+      resume: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    render(<StatsPage />);
+
+    expect(screen.getByText(/could not load stats/i)).toBeInTheDocument();
+    expect(screen.getByText(/an unexpected error occurred/i)).toBeInTheDocument();
+  });
+
+  it("shows Never when stats are present without a lastUpdated timestamp", () => {
+    mockedUsePolling.mockReturnValue({
+      status: "ok",
+      data: { ...STATS, paused: false },
+      error: null,
+      lastUpdated: null,
+      paused: false,
+      pause: jest.fn(),
+      resume: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    render(<StatsPage />);
+
+    expect(screen.getByText(/last updated:\s*never/i)).toBeInTheDocument();
+    expect(screen.queryByText(/backend is currently paused/i)).not.toBeInTheDocument();
+  });
+
+  it("announces meaningful stats changes via a debounced live region, avoiding initial mount, handling zero states", async () => {
+    const fetchMock = jest.fn(async () => jsonResponse(STATS)); // paused: true
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    const { container } = render(<StatsPage />);
+    
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    
+    // Initial data fetch
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => jest.advanceTimersByTime(500)); // debounce window
+    
+    // Should NOT announce on initial mount
+    expect(liveRegion).toHaveTextContent("");
+
+    // Simulate poll with changes (unpaused, updated counts)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, totalRequests: 17, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // Fast-forward partial debounce time
+    await act(async () => jest.advanceTimersByTime(200));
+    expect(liveRegion).toHaveTextContent("");
+
+    // Fast-forward remainder of debounce window
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(liveRegion).toHaveTextContent("Stats updated: 4 services, 8 API keys, 17 requests, 2 agents");
+
+    // Simulate zero-results state
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ totalServices: 0, totalApiKeys: 0, totalRequests: 0, uniqueAgents: 0, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    
+    // Rapid successive update (another update happens before the previous 500ms debounce completes)
+    // We can simulate this by resolving another fetch instantly, though usePolling is 5s.
+    // Instead we'll just wait 200ms, then trigger another state change by simulating a paused state fetch
+    await act(async () => jest.advanceTimersByTime(200));
+    
+    // Force a re-render with new data (simulating a rapid update perhaps from another source, or just we test debounce)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, paused: true }));
+    await act(async () => jest.advanceTimersByTime(5_000)); // wait for next poll
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    
+    await act(async () => jest.advanceTimersByTime(500));
+    // The previous update (0 results) should have been skipped/overwritten, only the final update announced
+    expect(liveRegion).toHaveTextContent("Stats updated: Backend is paused");
+  });
+
+  it("announces meaningful stats changes via a debounced live region, avoiding initial mount, handling zero states", async () => {
+    const fetchMock = jest.fn(async () => jsonResponse(STATS)); // paused: true
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    const { container } = render(<StatsPage />);
+    
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    
+    // Initial data fetch
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => jest.advanceTimersByTime(500)); // debounce window
+    
+    // Should NOT announce on initial mount
+    expect(liveRegion).toHaveTextContent("");
+
+    // Simulate poll with changes (unpaused, updated counts)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, totalRequests: 17, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // Fast-forward partial debounce time
+    await act(async () => jest.advanceTimersByTime(200));
+    expect(liveRegion).toHaveTextContent("");
+
+    // Fast-forward remainder of debounce window
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(liveRegion).toHaveTextContent("Stats updated: 4 services, 8 API keys, 17 requests, 2 agents");
+
+    // Simulate zero-results state
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ totalServices: 0, totalApiKeys: 0, totalRequests: 0, uniqueAgents: 0, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    
+    // Rapid successive update (another update happens before the previous 500ms debounce completes)
+    // We can simulate this by resolving another fetch instantly, though usePolling is 5s.
+    // Instead we'll just wait 200ms, then trigger another state change by simulating a paused state fetch
+    await act(async () => jest.advanceTimersByTime(200));
+    
+    // Force a re-render with new data (simulating a rapid update perhaps from another source, or just we test debounce)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, paused: true }));
+    await act(async () => jest.advanceTimersByTime(5_000)); // wait for next poll
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    
+    await act(async () => jest.advanceTimersByTime(500));
+    // The previous update (0 results) should have been skipped/overwritten, only the final update announced
+    expect(liveRegion).toHaveTextContent("Stats updated: Backend is paused");
+  });
+
+  it("announces meaningful stats changes via a debounced live region, avoiding initial mount, handling zero states", async () => {
+    const fetchMock = jest.fn(async () => jsonResponse(STATS)); // paused: true
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    const { container } = render(<StatsPage />);
+    
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    
+    // Initial data fetch
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => jest.advanceTimersByTime(500)); // debounce window
+    
+    // Should NOT announce on initial mount
+    expect(liveRegion).toHaveTextContent("");
+
+    // Simulate poll with changes (unpaused, updated counts)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, totalRequests: 17, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // Fast-forward partial debounce time
+    await act(async () => jest.advanceTimersByTime(200));
+    expect(liveRegion).toHaveTextContent("");
+
+    // Fast-forward remainder of debounce window
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(liveRegion).toHaveTextContent("Stats updated: 4 services, 8 API keys, 17 requests, 2 agents");
+
+    // Simulate zero-results state
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ totalServices: 0, totalApiKeys: 0, totalRequests: 0, uniqueAgents: 0, paused: false }));
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    
+    // Rapid successive update (another update happens before the previous 500ms debounce completes)
+    // We can simulate this by resolving another fetch instantly, though usePolling is 5s.
+    // Instead we'll just wait 200ms, then trigger another state change by simulating a paused state fetch
+    await act(async () => jest.advanceTimersByTime(200));
+    
+    // Force a re-render with new data (simulating a rapid update perhaps from another source, or just we test debounce)
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ ...STATS, paused: true }));
+    await act(async () => jest.advanceTimersByTime(5_000)); // wait for next poll
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    
+    await act(async () => jest.advanceTimersByTime(500));
+    // The previous update (0 results) should have been skipped/overwritten, only the final update announced
+    expect(liveRegion).toHaveTextContent("Stats updated: Backend is paused");
   });
 });

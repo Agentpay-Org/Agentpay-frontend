@@ -166,6 +166,64 @@ describe("Tooltip", () => {
       fireEvent.focusIn(trigger);
       expect(screen.getByRole("tooltip")).toBeInTheDocument();
     });
+
+    it("renders the provided label text inside the tooltip", () => {
+      render(
+        <Tooltip label="Custom tip">
+          <button type="button">Trigger</button>
+        </Tooltip>
+      );
+      fireEvent.focusIn(screen.getByRole("button", { name: "Trigger" }));
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Custom tip");
+    });
+
+    it("renders an empty tooltip body when the label is empty", () => {
+      render(
+        <Tooltip label={""}>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      );
+      fireEvent.focusIn(screen.getByRole("button", { name: "Trigger" }));
+      const tip = screen.getByRole("tooltip");
+      expect(tip).toBeInTheDocument();
+      // body span exists but carries no text
+      expect(tip.textContent).toBe("");
+    });
+  });
+
+  describe("opacity/ready state transition", () => {
+    const originalRect = Element.prototype.getBoundingClientRect;
+    afterEach(() => {
+      Element.prototype.getBoundingClientRect = originalRect;
+    });
+    const rect = (over: Partial<DOMRect>): DOMRect =>
+      ({
+        top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0,
+        ...over,
+      }) as DOMRect;
+
+    it("is absent before focus/hover (initial state)", () => {
+      // Before any interaction, no tooltip is mounted at all.
+      Element.prototype.getBoundingClientRect = function () {
+        return rect({ width: 0, height: 0 });
+      };
+      renderTooltip();
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+
+    it("becomes opaque (opacity 1) once position is measured", async () => {
+      Element.prototype.getBoundingClientRect = function () {
+        if (this.getAttribute("role") === "tooltip") return rect({ width: 80, height: 30 });
+        if (this.className.includes("inline-flex"))
+          return rect({ top: 100, left: 200, width: 50, height: 20 });
+        return rect({});
+      };
+      renderTooltip();
+      fireEvent.focusIn(getTrigger());
+      await waitFor(() => {
+        expect(screen.getByRole("tooltip")).toHaveStyle({ opacity: "1" });
+      });
+    });
   });
 
   describe("collision-aware positioning", () => {

@@ -33,14 +33,35 @@ function Probe({ path }: { path: string | null }) {
   const state = useApi<Payload>(path);
 
   if (state.status === "ok") {
-    return <output data-testid="state">ok:{state.data.label}</output>;
+    return (
+      <div>
+        <output data-testid="state">ok:{state.data.label}</output>
+        <button data-testid="refetch-btn" onClick={state.refetch}>
+          Refetch
+        </button>
+      </div>
+    );
   }
 
   if (state.status === "error") {
-    return <output data-testid="state">error:{state.error}</output>;
+    return (
+      <div>
+        <output data-testid="state">error:{state.error}</output>
+        <button data-testid="refetch-btn" onClick={state.refetch}>
+          Refetch
+        </button>
+      </div>
+    );
   }
 
-  return <output data-testid="state">loading</output>;
+  return (
+    <div>
+      <output data-testid="state">loading</output>
+      <button data-testid="refetch-btn" onClick={state.refetch}>
+        Refetch
+      </button>
+    </div>
+  );
 }
 
 function DetailedProbe({ path }: { path: string | null }) {
@@ -57,15 +78,32 @@ function DetailedProbe({ path }: { path: string | null }) {
         <button data-testid="retry-btn" onClick={state.retry}>
           Retry
         </button>
+        <button data-testid="refetch-btn" onClick={state.refetch}>
+          Refetch
+        </button>
       </div>
     );
   }
 
   if (state.status === "ok") {
-    return <output data-testid="state">ok:{state.data.label}</output>;
+    return (
+      <div>
+        <output data-testid="state">ok:{state.data.label}</output>
+        <button data-testid="refetch-btn" onClick={state.refetch}>
+          Refetch
+        </button>
+      </div>
+    );
   }
 
-  return <output data-testid="state">loading</output>;
+  return (
+    <div>
+      <output data-testid="state">loading</output>
+      <button data-testid="refetch-btn" onClick={state.refetch}>
+        Refetch
+      </button>
+    </div>
+  );
 }
 
 describe("useApi", () => {
@@ -162,6 +200,196 @@ describe("useApi", () => {
     });
 
     expect(screen.getByTestId("state")).toHaveTextContent("ok:retried success");
+  });
+
+  it("exposes a stable refetch callback on every status", async () => {
+    const seen: Array<() => void> = [];
+
+    function IdentityProbe({ path }: { path: string }) {
+      const state = useApi<Payload>(path);
+      seen.push(state.refetch);
+
+      if (state.status === "ok") {
+        return (
+          <div>
+            <output data-testid="state">ok:{state.data.label}</output>
+            <button data-testid="refetch-btn" onClick={state.refetch}>
+              Refetch
+            </button>
+          </div>
+        );
+      }
+
+      if (state.status === "error") {
+        return (
+          <div>
+            <output data-testid="state">error:{state.error}</output>
+            <button data-testid="refetch-btn" onClick={state.refetch}>
+              Refetch
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <output data-testid="state">loading</output>
+          <button data-testid="refetch-btn" onClick={state.refetch}>
+            Refetch
+          </button>
+        </div>
+      );
+    }
+
+    const first = createDeferred<Payload>();
+    apiGetMock.mockReturnValueOnce(first.promise);
+
+    render(<IdentityProbe path="/api/v1/events" />);
+    expect(seen.length).toBeGreaterThan(0);
+    const initialRefetch = seen[0];
+
+    await act(async () => {
+      first.resolve({ label: "initial" });
+      await first.promise;
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("ok:initial");
+    expect(seen.every((fn) => fn === initialRefetch)).toBe(true);
+
+    apiGetMock.mockRejectedValueOnce(new Error("boom"));
+    act(() => {
+      screen.getByTestId("refetch-btn").click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("state")).toHaveTextContent("error:boom");
+    });
+
+    expect(seen.every((fn) => fn === initialRefetch)).toBe(true);
+  });
+
+  it("refetch cancels an in-flight request and loads fresh data", async () => {
+    const first = createDeferred<Payload>();
+    const second = createDeferred<Payload>();
+    let firstSignal: AbortSignal | undefined;
+
+    apiGetMock
+      .mockImplementationOnce((_path, init) => {
+        firstSignal = init?.signal as AbortSignal;
+        return first.promise;
+      })
+      .mockReturnValueOnce(second.promise);
+
+    render(<Probe path="/api/v1/events" />);
+
+    expect(apiGetMock).toHaveBeenCalledTimes(1);
+    expect(firstSignal?.aborted).toBe(false);
+
+    act(() => {
+      screen.getByTestId("refetch-btn").click();
+    });
+
+    expect(apiGetMock).toHaveBeenCalledTimes(2);
+    expect(firstSignal?.aborted).toBe(true);
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+
+    await act(async () => {
+      first.resolve({ label: "stale" });
+      await first.promise;
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+
+    await act(async () => {
+      second.resolve({ label: "fresh" });
+      await second.promise;
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("ok:fresh");
+  });
+
+  it("refetch from an error state recovers to ok", async () => {
+    apiGetMock.mockRejectedValueOnce(new Error("temporary failure"));
+
+    render(<DetailedProbe path="/api/v1/events" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-message")).toHaveTextContent(
+        "temporary failure",
+      );
+    });
+
+    const recovered = createDeferred<Payload>();
+    apiGetMock.mockReturnValueOnce(recovered.promise);
+
+    act(() => {
+      screen.getByTestId("refetch-btn").click();
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+
+    await act(async () => {
+      recovered.resolve({ label: "recovered" });
+      await recovered.promise;
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("ok:recovered");
+  });
+
+  it("refetch is a no-op while path is null", () => {
+    render(<Probe path={null} />);
+
+    act(() => {
+      screen.getByTestId("refetch-btn").click();
+    });
+
+    expect(apiGetMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+  });
+
+  it("automatically refetches when the browser comes back online after an error", async () => {
+    apiGetMock.mockRejectedValueOnce(new Error("offline failure"));
+
+    render(<Probe path="/api/v1/events" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("state")).toHaveTextContent(
+        "error:offline failure",
+      );
+    });
+
+    const recovered = createDeferred<Payload>();
+    apiGetMock.mockReturnValueOnce(recovered.promise);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+
+    await act(async () => {
+      recovered.resolve({ label: "back online" });
+      await recovered.promise;
+    });
+
+    expect(screen.getByTestId("state")).toHaveTextContent("ok:back online");
+  });
+
+  it("ignores online events while the request is already successful", async () => {
+    apiGetMock.mockResolvedValueOnce({ label: "stable" });
+
+    render(<Probe path="/api/v1/events" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("state")).toHaveTextContent("ok:stable");
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(apiGetMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("state")).toHaveTextContent("ok:stable");
   });
 
   it("covers timeout branch using fake timers", async () => {

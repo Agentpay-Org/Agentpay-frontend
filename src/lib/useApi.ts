@@ -12,13 +12,20 @@ export type ApiErrorState = {
   isTimeout: boolean;
   isRateLimited: boolean;
   retryAfterMs: number | null;
+  /** Error-state alias of `refetch` for existing callers. */
   retry: () => void;
 };
 
-export type State<T> =
+type FetchState<T> =
   | { status: "loading" }
   | ApiErrorState
   | { status: "ok"; data: T };
+
+/**
+ * Discriminated fetch status plus a stable `refetch` handle available in every
+ * status. Narrowing on `status` continues to work for existing consumers.
+ */
+export type State<T> = FetchState<T> & { refetch: () => void };
 
 /**
  * Fetch JSON from the AgentPay backend and react to path changes.
@@ -27,6 +34,9 @@ export type State<T> =
  * stale paths are ignored after unmount or path changes, so consumers do not
  * need to add their own "is mounted" guard around this hook.
  *
+ * Call `refetch()` to re-run the current path request; any in-flight request is
+ * aborted first.
+ *
  * @example
  * const state = useApi<{ items: AppEvent[] }>("/api/v1/events?limit=100");
  * if (state.status === "loading") return <Spinner label="Loading events" />;
@@ -34,7 +44,7 @@ export type State<T> =
  *   return (
  *     <div>
  *       <p role="alert">{state.error}</p>
- *       {state.isTimeout && <button onClick={state.retry}>Retry</button>}
+ *       {state.isTimeout && <button onClick={state.refetch}>Retry</button>}
  *     </div>
  *   );
  * }
@@ -42,17 +52,19 @@ export type State<T> =
  */
 export function useApi<T>(path: string | null): State<T> {
   const [state, dispatch] = useReducer(
-    (_state: State<T>, action: State<T>) => action,
-    { status: "loading" } as State<T>
+    (_state: FetchState<T>, action: FetchState<T>) => action,
+    { status: "loading" } as FetchState<T>
   );
   const [reloadToken, bumpReloadToken] = useReducer((s: number) => s + 1, 0);
 
-  const retry = useCallback(() => {
+  const refetch = useCallback(() => {
     bumpReloadToken();
   }, []);
 
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -101,15 +113,14 @@ export function useApi<T>(path: string | null): State<T> {
           isTimeout,
           isRateLimited,
           retryAfterMs,
-          retry,
+          retry: refetch,
         });
       });
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [path, reloadToken, retry]);
+  }, [path, reloadToken, refetch]);
 
-  return state;
+  return { ...state, refetch };
 }
-

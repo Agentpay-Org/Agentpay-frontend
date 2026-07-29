@@ -409,52 +409,86 @@ describe("UsagePage", () => {
   });
 
   it("shows busy state and blocks double-submit while recording", async () => {
-    let resolveRecord: (value: unknown) => void;
-    apiPostMock.mockImplementationOnce(() => {
-      return new Promise((resolve) => {
-        resolveRecord = resolve;
-      });
+  let resolveRecord: (value: unknown) => void;
+  apiPostMock.mockImplementationOnce(() => {
+    return new Promise((resolve) => {
+      resolveRecord = resolve;
     });
-
-    render(<UsagePage />);
-    fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], {
-      target: { value: "a" },
-    });
-    fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
-      target: { value: "s" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Requests$/i), {
-      target: { value: "5" },
-    });
-
-    const recordButton = screen.getByRole("button", { name: /Record/i });
-
-    // Using submit to verify the onRecord handler prevents multiple calls
-    const form = screen.getByLabelText(/^Requests$/i).closest("form")!;
-    fireEvent.submit(form);
-
-    // Button should be disabled and show busy text
-    expect(recordButton).toBeDisabled();
-    expect(screen.getByText(/Recording…/i)).toBeInTheDocument();
-
-    // Try submitting again
-    fireEvent.submit(form);
-
-    // Resolve the promise
-    resolveRecord!({
-      total: 5,
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText(/New total: 5/i)).toBeInTheDocument();
-    });
-
-    // fetch should only have been called once despite the second submit
-    expect(apiPostMock).toHaveBeenCalledTimes(1);
-    expect(recordButton).not.toBeDisabled();
   });
 
-  describe("Date range presets", () => {
+  render(<UsagePage />);
+  fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], {
+    target: { value: "a" },
+  });
+  fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
+    target: { value: "s" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+    target: { value: "5" },
+  });
+
+  const recordButton = screen.getByRole("button", { name: /Record/i });
+
+  // Using submit to verify the onRecord handler prevents multiple calls
+  const form = screen.getByLabelText(/^Requests$/i).closest("form")!;
+  fireEvent.submit(form);
+
+  // Button should be disabled and show busy text
+  expect(recordButton).toBeDisabled();
+  expect(screen.getByText(/Recording…/i)).toBeInTheDocument();
+
+  // Try submitting again
+  fireEvent.submit(form);
+
+  // Resolve the promise
+  resolveRecord!({
+    total: 5,
+  });
+
+  await waitFor(() => {
+    expect(screen.getByText(/New total: 5/i)).toBeInTheDocument();
+  });
+
+  // fetch should only have been called once despite the second submit
+  expect(apiPostMock).toHaveBeenCalledTimes(1);
+  expect(recordButton).not.toBeDisabled();
+});
+
+it("does not display success or error feedback while recording is in progress", () => {
+  apiPostMock.mockImplementationOnce(
+    () => new Promise(() => {})
+  );
+
+  render(<UsagePage />);
+
+  fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[0], {
+    target: { value: "agent" },
+  });
+
+  fireEvent.change(screen.getAllByLabelText(/^Service ID$/i)[0], {
+    target: { value: "service" },
+  });
+
+  fireEvent.change(screen.getByLabelText(/^Requests$/i), {
+    target: { value: "5" },
+  });
+
+  fireEvent.click(
+    screen.getByRole("button", { name: /Record/i })
+  );
+
+  expect(screen.getByText(/Recording…/i)).toBeInTheDocument();
+
+  expect(
+    screen.queryByText(/Recorded/i)
+  ).not.toBeInTheDocument();
+
+  expect(
+    screen.queryByText(/Recording failed/i)
+  ).not.toBeInTheDocument();
+});
+
+describe("Date range presets", () => {
     it("renders the date range preset selector with all options", () => {
       render(<UsagePage />);
       expect(screen.getByText("Date range")).toBeInTheDocument();

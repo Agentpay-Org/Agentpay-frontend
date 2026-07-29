@@ -70,7 +70,8 @@ export default function SearchPage() {
 
   // Derive live region text from items and debounced query
   const liveRegionText = useMemo(() => {
-    if (!query || error || isSearching) return "";
+    if (!query || isSearching) return "";
+    if (error) return `Search failed: ${error}`;
     if (!items) return "";
     const count = items.length;
     return count === 0

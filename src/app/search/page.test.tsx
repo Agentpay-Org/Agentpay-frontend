@@ -106,6 +106,9 @@ describe("SearchPage", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("API error");
     expect(screen.queryByText("No matches.")).not.toBeInTheDocument();
+
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toHaveTextContent("Search failed: API error");
   });
 
   it("allows retrying after an error", async () => {

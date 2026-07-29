@@ -95,6 +95,7 @@ describe("SearchPage", () => {
     const liveRegion = document.querySelector('[aria-live="polite"]');
     expect(liveRegion).toHaveTextContent('No matches for "nonexistent"');
     expect(screen.getByText("No matches.")).toBeInTheDocument();
+    expect(screen.getByText("Try a different search term.")).toBeInTheDocument();
   });
 
   it("surfaces an alert when the API call fails", async () => {
@@ -105,6 +106,25 @@ describe("SearchPage", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("API error");
     expect(screen.queryByText("No matches.")).not.toBeInTheDocument();
+  });
+
+  it("allows retrying after an error", async () => {
+    apiGetMock.mockRejectedValueOnce(new Error("API error"));
+    apiGetMock.mockResolvedValueOnce({
+      services: [{ serviceId: "service-1", priceStroops: 100 }],
+    });
+
+    render(<SearchPage />);
+    await enterSearchTerm("error");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("API error");
+
+    const retryButton = screen.getByRole("button", { name: /Try again/i });
+    fireEvent.click(retryButton);
+    await flushPromises();
+
+    expect(screen.getByText("service-1")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("clears live region and results when query is cleared", async () => {

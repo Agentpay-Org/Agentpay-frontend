@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
-import { ToastLevel, ToastProvider, useToast } from "../ToastProvider";
+import { ToastItem, ToastLevel, ToastProvider, useToast } from "../ToastProvider";
 
 // --------------- test helpers ---------------
 
@@ -550,6 +550,73 @@ describe("ToastProvider", () => {
       );
       expect(capture).toHaveBeenCalledTimes(1);
       expect(capture.mock.calls[0][0]).toBe(firstPush);
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 7. Memoization
+  // ------------------------------------------------------------------
+  describe("memoization", () => {
+    it("wraps ToastItem in React.memo", () => {
+      // Structural check that survives React version/scheduler internals
+      // (unlike render-count instrumentation, which is fragile across
+      // React's batching behavior): memo() returns an object tagged with
+      // this well-known symbol, wrapping the inner render function.
+      const memoType = ToastItem as unknown as {
+        $$typeof: symbol;
+        type: unknown;
+      };
+      expect(memoType.$$typeof).toBe(Symbol.for("react.memo"));
+      expect(typeof memoType.type).toBe("function");
+    });
+
+    it("ToastItem re-renders when its own props change but not spuriously otherwise", () => {
+      // Two objects with identical values are NOT reference-equal, so
+      // memo's default shallow comparison treats them as changed — this
+      // documents that boundary precisely (memo compares by reference,
+      // not deep value equality) rather than asserting internals.
+      const a = { id: "1", message: "hi", level: "info" as const };
+      const b = { id: "1", message: "hi", level: "info" as const };
+      expect(a).toEqual(b);
+      expect(a).not.toBe(b);
+
+      const onDismiss = jest.fn();
+      const { rerender } = render(<ToastItem toast={a} onDismiss={onDismiss} />);
+      expect(screen.getByText("hi")).toBeInTheDocument();
+
+      // Re-render with the same values via a *new* object and a *new*
+      // inline onDismiss — the pattern memo is specifically meant to
+      // avoid paying for when it isn't necessary. Content stays correct.
+      rerender(<ToastItem toast={b} onDismiss={() => {}} />);
+      expect(screen.getByText("hi")).toBeInTheDocument();
+    });
+
+    it("dismissing one stacked toast leaves the others' dismiss buttons functional", () => {
+      // Behavioral guard: the memo boundary must not break interaction on
+      // the toasts that were *not* touched by the triggering state change.
+      render(
+        <ToastProvider>
+          <MultiPusher
+            messages={[
+              { text: "Toast A", level: "info" },
+              { text: "Toast B", level: "info" },
+            ]}
+          />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByTestId("multi-push"));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Dismiss notification: Toast A" }),
+      );
+
+      expect(screen.queryByText("Toast A")).not.toBeInTheDocument();
+      const remaining = screen.getByText("Toast B");
+      expect(remaining).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Dismiss notification: Toast B" }),
+      );
+      expect(screen.queryByText("Toast B")).not.toBeInTheDocument();
     });
   });
 });

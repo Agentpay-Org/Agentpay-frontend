@@ -91,3 +91,35 @@ describe("HelpPage state rendering", () => {
     expect((useApi as jest.Mock)).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Debounced status live-region announcements
+// ---------------------------------------------------------------------------
+
+describe("HelpPage — status live region", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("renders a polite, atomic, visually-hidden announcer, empty on initial mount", () => {
+    (useApi as jest.Mock).mockReturnValue({
+      status: "ok",
+      data: { topics: [{ id: "1", title: "How to use", content: "Instructions here." }] },
+    });
+    render(<HelpPage />);
+
+    const announcer = screen.getByTestId("help-status-announcer");
+    expect(announcer).toHaveAttribute("aria-live", "polite");
+    expect(announcer).toHaveAttribute("aria-atomic", "true");
+    expect(announcer).toHaveClass("sr-only");
+    expect(announcer).toBeEmptyDOMElement();
+  });
+
+  // Debounce/transition behavior (success → error → empty, collapsing rapid
+  // updates, not announcing the very first settled status) is covered
+  // exhaustively in isolation in __tests__/useHelpStatusAnnouncement.test.tsx.
+  // It can't be re-exercised through this component directly: HelpPage is
+  // memoized with no props (see "memoizes to prevent needless re-renders"
+  // above), so re-rendering it with a new useApi() mock return value doesn't
+  // trigger a re-render the way a real prop or internal state change would.
+});

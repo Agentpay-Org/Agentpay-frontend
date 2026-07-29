@@ -22,8 +22,12 @@ const AUTO_DISMISS_MS = 4000;
  * Provides the `useToast()` hook and renders the toast stack.
  *
  * Accessibility:
- * - The stack container acts as a status region while each individual toast
- *   manages its own accessibility properties dynamically based on severity:
+ * - The stack container is a named landmark region (`role="region"`,
+ *   `aria-label="Notifications"`) so screen-reader users can jump straight
+ *   to it via a regions/landmarks list and review the current toasts on
+ *   demand, in addition to hearing new ones announced automatically.
+ * - Each individual toast manages its own accessibility properties
+ *   dynamically based on severity:
  *   - Error toasts (`error`) use `role="alert"` and `aria-live="assertive"` so screen readers
  *     can interrupt and announce them immediately.
  *   - Info, success, and warning toasts (`info`, `success`, `warning`) use `role="status"`
@@ -58,6 +62,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={{ push }}>
       {children}
       <div
+        role="region"
+        aria-label="Notifications"
         aria-live="polite"
         className="pointer-events-none fixed bottom-4 right-4 flex flex-col gap-2"
       >

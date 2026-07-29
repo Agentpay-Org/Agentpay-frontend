@@ -242,6 +242,100 @@ describe("ToastProvider", () => {
   });
 
   // ------------------------------------------------------------------
+  // 2b. Empty and error states
+  //
+  // ToastProvider has no "loading" phase (push() is a synchronous local
+  // update, not a fetch), so its two states are: empty (nothing on
+  // screen) and error (a toast pushed with level="error"). These tests
+  // cover both, plus the exclusivity between an empty push and a real one.
+  // ------------------------------------------------------------------
+  describe("empty and error states", () => {
+    it("renders nothing when no toast has been pushed (empty state)", () => {
+      render(
+        <ToastProvider>
+          <span>child</span>
+        </ToastProvider>,
+      );
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("does not render a toast for an empty-string message", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="" testId="empty-push" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("empty-push"));
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("does not render a toast for a whitespace-only message", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="   " testId="whitespace-push" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("whitespace-push"));
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("ignoring an empty push does not block a real push right after it", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="" testId="empty-push" />
+          <ToastPusher message="Real message" testId="real-push" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("empty-push"));
+      fireEvent.click(screen.getByTestId("real-push"));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Real message");
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+    });
+
+    it("empty state and error state are mutually exclusive: an error push always produces exactly one alert, never zero", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Save failed" level="error" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const alerts = screen.getAllByRole("alert");
+      expect(alerts).toHaveLength(1);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("an error toast is visually and semantically distinct from the empty state it replaces", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Network error" level="error" />
+        </ToastProvider>,
+      );
+
+      // Before push: empty state.
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      // After push: error state, distinctly styled and announced assertively.
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveAttribute("aria-live", "assertive");
+      expect(alert.className).toMatch(/bg-rose-600/);
+    });
+  });
+
+  // ------------------------------------------------------------------
   // 3. Toast roles: error → alert, info → status
   // ------------------------------------------------------------------
   describe("toast role assignment", () => {

@@ -39,6 +39,7 @@ const config: Config = {
     "./src/components/TimeAgo.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/ToastProvider.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/app/docs/page.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
+    "./src/app/settings/page.tsx": { statements: 100, branches: 95, functions: 100, lines: 100 },
     "./src/app/docs/DocsFilter.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/CurlBlock.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/lib/apiClient.ts": { statements: 80, branches: 80, functions: 70, lines: 80 },

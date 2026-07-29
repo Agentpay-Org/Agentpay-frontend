@@ -397,6 +397,8 @@ The `/events` page renders server-supplied JSON payloads with performance safegu
 - **Render count cap:** The list is capped at 100 rendered rows (`MAX_RENDERED_ROWS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing first 100 of N events." note appears above the list.
 - **Stable filtering:** The `useMemo` filter dependencies are minimal (`items`, `debouncedQuery`), so background polling does not trigger unnecessary re-renders when the underlying data is unchanged.
 
+For component-level contract details, see [docs/activity.md](docs/activity.md).
+
 ## Changelog empty state
 
 The `/changelog` page keeps using `useApi("/api/v1/changelog")` for loading release notes. When the backend returns `{ entries: [] }`, it renders the shared `EmptyState` component with a clear "No changelog entries yet" message instead of an empty list. This branch is constant-time and adds no extra network calls.

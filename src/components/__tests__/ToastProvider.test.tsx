@@ -165,6 +165,23 @@ describe("ToastProvider", () => {
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
+    it("makes the dismiss button keyboard-focusable and screen-reader accessible", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Keyboard dismiss" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+      const dismiss = screen.getByRole("button", {
+        name: "Dismiss notification: Keyboard dismiss",
+      });
+      dismiss.focus();
+      expect(dismiss).toHaveFocus();
+      expect(dismiss).toHaveAttribute("type", "button");
+      expect(dismiss).toBeInTheDocument();
+    });
+
     it("dismisses only the targeted toast, leaving the rest", () => {
       render(
         <ToastProvider>
@@ -420,6 +437,27 @@ describe("ToastProvider", () => {
 
       const toast = screen.getByRole("status");
       expect(toast).toHaveAttribute("aria-live", "polite");
+    });
+
+    it("renders a success toast with an accessible name and dismiss button", () => {
+      render(
+        <ToastProvider>
+          <ToastPusher message="Payment processed successfully" level="success" />
+        </ToastProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("push-btn"));
+
+      const toast = screen.getByRole("status");
+      expect(toast).toHaveTextContent("Payment processed successfully");
+      expect(toast).toHaveAttribute("aria-live", "polite");
+
+      const dismiss = screen.getByRole("button", {
+        name: "Dismiss notification: Payment processed successfully",
+      });
+      expect(dismiss).toBeInTheDocument();
+      fireEvent.click(dismiss);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
     it("renders a warning toast with aria-live='polite'", () => {

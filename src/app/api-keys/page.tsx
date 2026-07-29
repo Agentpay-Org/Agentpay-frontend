@@ -165,7 +165,6 @@ export default function ApiKeysPage() {
             <code id="created-api-key" className="flex-1 break-all">
               {showFull ? created : maskedKey}
             </code>
-            <CopyButton value={created} />
             <button
               type="button"
               aria-controls="created-api-key"

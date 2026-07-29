@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
@@ -33,12 +34,20 @@ export default function StatsPage() {
   const error = statsState.error;
   const lastUpdated = statsState.lastUpdated;
 
+  const showLoading = fetchStatus === "loading" && stats === null;
+  const showInitialError = fetchStatus === "error" && stats === null;
+  const showEmpty = fetchStatus === "ok" && stats === null;
+  // Stale-data poll failure: keep the grid visible and surface a retryable alert.
+  const showStaleError = fetchStatus === "error" && stats !== null;
+
   const statsSummary = stats
     ? stats.paused
       ? "Stats updated: Backend is paused"
       : `Stats updated: ${stats.totalServices} services, ${stats.totalApiKeys} API keys, ${stats.totalRequests} requests, ${stats.uniqueAgents} agents`
     : "";
 
+  // Debounce the announcement so a burst of polls collapses into a single
+  // spoken update for the values the user ends up on.
   const debouncedSummary = useDebounce(statsSummary, 500);
   const [announcement, setAnnouncement] = useState("");
   const isFirstMount = useRef(true);
@@ -58,23 +67,13 @@ export default function StatsPage() {
 
   return (
     <PageShell>
+      {/*
+       * Announces refreshed figures after the debounce settles. Kept separate
+       * from the loading/empty/error live region below so a data refresh and a
+       * state transition do not overwrite each other's announcement.
+       */}
       <div aria-live="polite" className="sr-only">
         {announcement}
-      </div>
-      <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
-      <ErrorMessage title="Failed to load stats" detail={error} />
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400">
-        <p>
-          Last updated: {lastUpdated ? <TimeAgo ts={lastUpdated.getTime()} /> : "Never"}
-        </p>
-        <button
-          type="button"
-          aria-pressed={statsState.paused}
-          onClick={statsState.paused ? statsState.resume : statsState.pause}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 font-medium text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
-        >
-          {statsState.paused ? "Resume polling" : "Pause polling"}
-        </button>
       </div>
       <h1 className="text-3xl font-semibold tracking-tight">Stats</h1>
 

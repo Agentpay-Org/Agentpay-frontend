@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageShell } from "@/components/PageShell";
 import { messages } from "@/lib/messages";
@@ -30,11 +30,134 @@ function computeInitialSettings(): {
   }
 }
 
+/**
+ * Derives the assistive-technology announcement for a settings state.
+ *
+ * Pure and defined at module scope so it allocates nothing per render and can
+ * be exercised directly, including the `loading` state — which React never
+ * paints in practice, since `loadSettings` sets it and its successor status in
+ * the same batch.
+ */
+export function deriveAnnouncement(
+  status: SettingsState,
+  errorMessage: string
+): string {
+  switch (status) {
+    case "loading":
+      return "Loading settings...";
+    case "error":
+      return `Error: ${errorMessage}`;
+    case "empty":
+      return "No settings configured.";
+    default:
+      return "Settings loaded successfully.";
+  }
+}
+
+/**
+ * The loading placeholder. Extracted and wrapped in `memo` so it is a stable
+ * element rather than JSX rebuilt on every parent render.
+ */
+export const LoadingPanel = memo(function LoadingPanel() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading settings"
+      className="rounded-lg border border-zinc-200 p-6 text-center dark:border-zinc-800"
+    >
+      <p className="text-sm text-zinc-500">Loading settings...</p>
+    </div>
+  );
+});
+
+/**
+ * Renders the value cell for one connection row: the API base plus its copy
+ * button. Extracted and wrapped in `memo` so that unrelated settings state
+ * (status transitions, error text) does not re-render the row — it only
+ * re-renders when `apiBase` itself changes.
+ */
+export const ConnectionValue = memo(function ConnectionValue({
+  apiBase,
+}: {
+  apiBase: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-zinc-900 dark:text-zinc-100">{apiBase}</span>
+      <CopyButton value={apiBase} label="Copy" />
+    </div>
+  );
+});
+
+/**
+ * Renders the settings body shown in the `success` state (appearance +
+ * connection sections).
+ *
+ * Wrapped in `memo` and given a single `apiBase` prop so that state the body
+ * does not read — `status` and `errorMessage`, both of which change on every
+ * load/retry cycle — cannot force it to re-render. The `KeyValueGrid` rows
+ * array is derived inside a `useMemo` keyed on `apiBase`, so the grid receives
+ * a stable `rows` reference across renders instead of a freshly allocated
+ * array each time; the cost of building it scales with the number of rows, so
+ * this is the part worth keeping out of the hot path.
+ */
+export const SettingsSections = memo(function SettingsSections({
+  apiBase,
+}: {
+  apiBase: string;
+}) {
+  const rows = useMemo(
+    () => [
+      {
+        label: messages.settings.connection.label,
+        value: <ConnectionValue apiBase={apiBase} />,
+      },
+    ],
+    [apiBase]
+  );
+
+  return (
+    <>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-medium">
+          {messages.settings.appearance.heading}
+        </h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          {messages.settings.appearance.description}
+        </p>
+        <ThemeToggle />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-medium">
+          {messages.settings.connection.heading}
+        </h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          {messages.settings.connection.description}
+        </p>
+        <div className="mt-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          <KeyValueGrid rows={rows} />
+        </div>
+      </section>
+    </>
+  );
+});
+
 export default function SettingsPage() {
   const [initial] = useState(computeInitialSettings);
   const [status, setStatus] = useState<SettingsState>(initial.status);
   const [apiBase, setApiBase] = useState<string>(initial.apiBase);
   const [errorMessage, setErrorMessage] = useState<string>(initial.errorMessage);
+
+  /**
+   * The assistive-technology announcement is derived from `status` and
+   * `errorMessage` only, so it is memoized on those two — a change to
+   * `apiBase` alone leaves the announced string untouched.
+   */
+  const announcement = useMemo(
+    () => deriveAnnouncement(status, errorMessage),
+    [status, errorMessage]
+  );
 
   const loadSettings = useCallback(() => {
     setStatus("loading");
@@ -63,22 +186,11 @@ export default function SettingsPage() {
 
       {/* Screen reader live region for assistive technology announcements */}
       <div className="sr-only" aria-live="polite" role="status">
-        {status === "loading" && "Loading settings..."}
-        {status === "error" && `Error: ${errorMessage}`}
-        {status === "empty" && "No settings configured."}
-        {status === "success" && "Settings loaded successfully."}
+        {announcement}
       </div>
 
       {/* Loading State */}
-      {status === "loading" && (
-        <div
-          role="status"
-          aria-label="Loading settings"
-          className="rounded-lg border border-zinc-200 p-6 text-center dark:border-zinc-800"
-        >
-          <p className="text-sm text-zinc-500">Loading settings...</p>
-        </div>
-      )}
+      {status === "loading" && <LoadingPanel />}
 
       {/* Error State with Retry Button */}
       {status === "error" && (
@@ -113,45 +225,7 @@ export default function SettingsPage() {
       )}
 
       {/* Success State */}
-      {status === "success" && (
-        <>
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-medium">
-              {messages.settings.appearance.heading}
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {messages.settings.appearance.description}
-            </p>
-            <ThemeToggle />
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-medium">
-              {messages.settings.connection.heading}
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {messages.settings.connection.description}
-            </p>
-            <div className="mt-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              <KeyValueGrid
-                rows={[
-                  {
-                    label: messages.settings.connection.label,
-                    value: (
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-zinc-900 dark:text-zinc-100">
-                          {apiBase}
-                        </span>
-                        <CopyButton value={apiBase} label="Copy" />
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          </section>
-        </>
-      )}
+      {status === "success" && <SettingsSections apiBase={apiBase} />}
     </PageShell>
   );
 }

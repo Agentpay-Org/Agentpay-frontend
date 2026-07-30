@@ -1,13 +1,14 @@
 "use client";
 
 import { PageShell } from "@/components/PageShell";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorMessage } from "@/components/ErrorMessage";
 import { TimeAgo } from "@/components/TimeAgo";
 
 type KeyItem = {
@@ -15,6 +16,20 @@ type KeyItem = {
   label: string;
   createdAt?: number | string | null;
 };
+
+/**
+ * Load state for the key list, mirroring the `loading | ok | error` vocabulary
+ * the shared fetch hooks (`useApi` / `usePolling`) already use.
+ *
+ * Modelling this as one value rather than separate `items` / `error` flags makes
+ * the three render states mutually exclusive by construction: the view can
+ * never show the empty state while a load is in flight, or an error and a table
+ * at the same time.
+ */
+type FetchState =
+  | { status: "loading" }
+  | { status: "ok"; items: KeyItem[] }
+  | { status: "error"; message: string };
 
 
 function toTimestampMs(value: KeyItem["createdAt"]): number | null {
@@ -25,13 +40,17 @@ function toTimestampMs(value: KeyItem["createdAt"]): number | null {
 }
 
 export default function ApiKeysPage() {
-  const [items, setItems] = useState<KeyItem[] | null>(null);
+  const [fetchState, setFetchState] = useState<FetchState>({
+    status: "loading",
+  });
   const [label, setLabel] = useState("");
   const [created, setCreated] = useState<string | null>(null);
   const [showFull, setShowFull] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Errors from create/revoke are separate from load errors: they annotate an
+  // otherwise-usable view rather than replacing it with an error state.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<KeyItem | null>(null);
-  
+
   const columns = useMemo<DataTableColumn<KeyItem>[]>(
     () => [
       {
@@ -77,20 +96,34 @@ export default function ApiKeysPage() {
     []
   );
 
+  const items = fetchState.status === "ok" ? fetchState.items : null;
   const tableData = useMemo(() => items ?? [], [items]);
 
-  const load = () =>
-    apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
-      .then((b) => setItems(b.items))
-      .catch((e: Error) => setError(e.message));
+  const load = useCallback(
+    () =>
+      apiGet<{ items: KeyItem[] }>("/api/v1/api-keys")
+        // A payload without `items` is treated as an empty list so the view
+        // shows the empty state instead of rendering blank.
+        .then((b) => setFetchState({ status: "ok", items: b.items ?? [] }))
+        .catch((e: Error) =>
+          setFetchState({ status: "error", message: e.message })
+        ),
+    []
+  );
+
+  /** Re-run the load from the start, showing the loading state again. */
+  const reload = useCallback(() => {
+    setFetchState({ status: "loading" });
+    return load();
+  }, [load]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setActionError(null);
     try {
       const res = await apiPost<{ key: string }>("/api/v1/api-keys", { label });
       setCreated(res.key);
@@ -98,17 +131,17 @@ export default function ApiKeysPage() {
       setLabel("");
       await load();
     } catch (err) {
-      setError((err as Error).message);
+      setActionError((err as Error).message);
     }
   };
 
   const onDelete = async (prefix: string) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiDelete(`/api/v1/api-keys/${prefix}`);
       await load();
     } catch (err) {
-      setError((err as Error).message);
+      setActionError((err as Error).message);
     }
   };
 
@@ -185,9 +218,31 @@ export default function ApiKeysPage() {
         </div>
       )}
 
-      <AlertError message={error} />
+      <AlertError message={actionError} />
 
-      {items && items.length === 0 && (
+      {/*
+       * Loading / error / empty are mutually exclusive branches of one state
+       * value, so exactly one can ever render. Each carries its own live-region
+       * role (role="status" for loading and empty, role="alert" inside
+       * ErrorMessage) so assistive tech announces the transition; they are
+       * deliberately not nested inside a shared aria-live wrapper, which would
+       * announce the same change twice.
+       */}
+      {fetchState.status === "loading" && (
+        <p role="status" className="text-sm text-zinc-500">
+          Loading API keys…
+        </p>
+      )}
+
+      {fetchState.status === "error" && (
+        <ErrorMessage
+          title="Could not load API keys"
+          detail={fetchState.message}
+          onRetry={reload}
+        />
+      )}
+
+      {fetchState.status === "ok" && fetchState.items.length === 0 && (
         <div role="status">
           <EmptyState
             title="No API keys yet"
@@ -196,7 +251,7 @@ export default function ApiKeysPage() {
         </div>
       )}
 
-      {items && items.length > 0 && (
+      {fetchState.status === "ok" && fetchState.items.length > 0 && (
         <DataTable
           caption="API keys"
           columns={columns}

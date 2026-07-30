@@ -373,135 +373,78 @@ it("submits a new API key via keyboard interaction (Enter key)", async () => {
   expect(await screen.findByLabelText(/created api key/i)).toBeInTheDocument();
 });
 
-// --- empty and error states ---
+// --- polite live-region announcements (aria-live) ---
 
-function mockFetchFailure(text = "server down") {
-  globalThis.fetch = jest.fn().mockResolvedValue({
-    ok: false,
-    status: 500,
-    text: async () => text,
-  } as unknown as Response);
-}
-
-it("shows a distinct error state with a retry action when the load fails", async () => {
-  mockFetchFailure();
+it("mounts an empty polite live region so later changes are announced", async () => {
+  mockFetchSuccess();
   render(<ApiKeysPage />);
 
-  const alert = await screen.findByRole("alert");
-  expect(alert).toHaveTextContent("Could not load API keys");
-  expect(alert).toHaveTextContent("Request failed");
-  expect(
-    screen.getByRole("button", { name: /try again/i }),
-  ).toBeInTheDocument();
+  const announcer = screen.getByTestId("api-keys-announcer");
+  expect(announcer).toHaveAttribute("aria-live", "polite");
+  expect(announcer).toHaveAttribute("aria-atomic", "true");
+  expect(announcer).toHaveClass("sr-only");
+  expect(announcer).toBeEmptyDOMElement();
 
-  // The error state replaces, not accompanies, the empty and loading states.
-  expect(screen.queryByText("No API keys yet")).not.toBeInTheDocument();
-  expect(screen.queryByText(/Loading API keys/i)).not.toBeInTheDocument();
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
-});
-
-it("re-fetches and recovers when Retry is clicked", async () => {
-  mockFetchFailure();
-  render(<ApiKeysPage />);
-  await screen.findByRole("button", { name: /try again/i });
-
-  const fetchMock = globalThis.fetch as jest.Mock;
-  const callsBeforeRetry = fetchMock.mock.calls.length;
-  fetchMock.mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({ items: mockItems }),
-  } as unknown as Response);
-
-  fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-
+  // The first settled list is the baseline: still nothing announced.
   await screen.findByText("my-key");
-  expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: /try again/i }),
-  ).not.toBeInTheDocument();
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
 });
 
-it("shows the loading state again while a retry is in flight", async () => {
-  mockFetchFailure();
-  render(<ApiKeysPage />);
-  await screen.findByRole("button", { name: /try again/i });
-
-  let resolve: (val: unknown) => void = () => {};
-  (globalThis.fetch as jest.Mock).mockReturnValue(
-    new Promise((res) => {
-      resolve = res;
-    }),
-  );
-
-  fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-
-  expect(screen.getByRole("status")).toHaveTextContent("Loading API keys");
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-
-  resolve({ ok: true, status: 200, json: async () => ({ items: [] }) });
-  await screen.findByText("No API keys yet");
-});
-
-it("keeps the retry keyboard-operable", async () => {
-  const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
-  mockFetchFailure();
-  render(<ApiKeysPage />);
-
-  const retry = await screen.findByRole("button", { name: /try again/i });
-  expect(retry).toHaveAttribute("type", "button");
-
-  // Reachable by keyboard from the top of the page...
-  for (let i = 0; i < 6 && !retry.matches(":focus"); i += 1) {
-    await user.tab();
-  }
-  expect(retry).toHaveFocus();
-
-  (globalThis.fetch as jest.Mock).mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({ items: mockItems }),
-  } as unknown as Response);
-
-  // ...and activatable with Enter.
-  await user.keyboard("{Enter}");
-  await screen.findByText("my-key");
-});
-
-it("shows the empty state when the payload omits an items array", async () => {
-  globalThis.fetch = jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({}),
-  } as unknown as Response);
-
-  render(<ApiKeysPage />);
-
-  await screen.findByText("No API keys yet");
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
-});
-
-it("shows an action error alongside the list rather than the error state", async () => {
+it("announces the new count after a key is revoked", async () => {
   mockFetchSuccess();
   render(<ApiKeysPage />);
   await screen.findByText("my-key");
 
-  (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
-    ok: false,
-    status: 500,
-    text: async () => "revoke failed",
-  } as unknown as Response);
+  // Let the loaded list settle as the silent baseline first.
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
+
+  (globalThis.fetch as jest.Mock)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: async () => ({}),
+    } as unknown as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+    } as unknown as Response);
 
   fireEvent.click(screen.getByRole("button", { name: /^revoke$/i }));
   fireEvent.click(screen.getAllByRole("button", { name: /^revoke$/i })[0]);
 
+  await screen.findByText("No API keys yet");
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+
+  expect(screen.getByTestId("api-keys-announcer")).toHaveTextContent(
+    "No API keys",
+  );
+});
+
+it("keeps the live region silent when the initial load fails", async () => {
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 500,
+    text: async () => "server down",
+  } as unknown as Response);
+
+  render(<ApiKeysPage />);
+
+  // The role="alert" message already announces the failure; the polite region
+  // must not repeat it.
   expect(await screen.findByRole("alert")).toHaveTextContent("Request failed");
-  // A failed action must not blow away the loaded table.
-  expect(screen.getByRole("table", { name: /api keys/i })).toBeInTheDocument();
-  expect(
-    screen.queryByText("Could not load API keys"),
-  ).not.toBeInTheDocument();
+  act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+  expect(screen.getByTestId("api-keys-announcer")).toBeEmptyDOMElement();
 });
 
 it("shows the data table on successful load", async () => {

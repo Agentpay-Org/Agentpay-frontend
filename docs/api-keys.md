@@ -20,23 +20,37 @@ The component maintains the following internal state to manage the lifecycle of 
 - `actionError`: `string | null` - The error message from a failed create or revoke. Kept separate from `fetchState` because an action failure annotates an otherwise-usable view rather than replacing it.
 - `pendingRevoke`: `KeyItem | null` - The key currently selected for revocation, used to show the confirmation dialog.
 
-## Render states
+## Live-region announcements
 
-Because the load state is one value rather than separate `items` / `error` flags, the four render states are mutually exclusive by construction — the view can never show the empty state while a load is in flight, or an error and a table at once.
+The view renders a visually-hidden `aria-live="polite"` region
+(`data-testid="api-keys-announcer"`) so screen-reader users hear when the key
+list actually changes. The text is produced by
+[`useApiKeysAnnouncement`](../src/app/api-keys/useApiKeysAnnouncement.ts).
 
-| `fetchState` | Renders | Live-region role |
+| Fetch state | Announcement key | Announced text |
 | --- | --- | --- |
-| `loading` | `Loading API keys…` | `role="status"` |
-| `error` | `ErrorMessage` titled *Could not load API keys*, with a **Try again** button | `role="alert"` |
-| `ok`, `items` empty | `EmptyState` titled *No API keys yet* | `role="status"` |
-| `ok`, `items` non-empty | `DataTable` of keys | — |
+| Loading (`items === null`) | `idle` | *(silent)* |
+| Load/action error | `idle` | *(silent)* |
+| Loaded, no keys | `empty` | `No API keys` |
+| Loaded, one key | `count:1` | `1 API key` |
+| Loaded, N keys | `count:N` | `N API keys` |
 
-Notes for reviewers:
+Behaviour notes for reviewers:
 
-- **Retry.** *Try again* calls `reload()`, which resets `fetchState` to `loading` and re-runs the same `GET /api/v1/api-keys` request. It is a plain `<button type="button">`, so it is focusable in DOM order and activates with both Enter and Space — no key handling of our own is needed.
-- **Announcements.** Each state carries its own live-region role, so assistive tech announces the transition. They are deliberately *not* wrapped in a shared `aria-live` container, which would announce the same change twice.
-- **Missing payload.** A response without an `items` array is treated as an empty list, so a malformed payload shows the empty state instead of rendering blank.
-- **Action errors.** A failed create or revoke renders an `AlertError` above the list and leaves the loaded table in place; it does not switch the view into the load-error state.
+- **Silent on mount.** The region is mounted empty so assistive tech registers
+  it before the first change, and the first settled state is kept as a silent
+  baseline. Only later changes are announced.
+- **Debounced (300ms).** Rapid successive updates — for example a revoke
+  followed immediately by a reload — collapse into a single announcement
+  instead of queueing one per update.
+- **Errors are not repeated.** Failures already render a `role="alert"`
+  message, which assistive tech announces on its own, so the polite region
+  stays silent to avoid double-speaking.
+- **Announcement keys are primitives.** `useDebounce` compares by identity, so
+  the state is flattened to a string (`count:3`) rather than an object; an
+  object would be a new reference each render and the timer would never settle.
+- The hook derives text only. It reads the existing `items` and `error` state
+  and does not change how keys are loaded, created, or revoked.
 
 ## Minimal usage example
 

@@ -122,6 +122,7 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/events`                     | Event log renderer                           | _(reads events stream/poll via `/api/v1/events` endpoints in code)_                                                                               |
 | `/export`                     | Export data                                  | _(calls export endpoints in code)_                                                                                                                |
 | `/help`                       | Help topics list — see [docs/help-page.md](docs/help-page.md) | `GET /api/v1/help`                                                                                                                |
+| `/onboarding`                 | Account setup checklist with empty/error/retry states — see [docs/onboarding-page.md](docs/onboarding-page.md) | `GET /api/v1/onboarding`                                                                 |
 | `/search`                     | Global search                                | _(calls search endpoint in code)_                                                                                                                 |
 | `/services`                   | Services list                                | `GET /api/v1/services` _(and/or list related endpoints in code)_                                                                                  |
 | `/services/:serviceId`        | Service details                              | `GET /api/v1/services/:serviceId` _(plus nested reads in code)_                                                                                   |
@@ -130,6 +131,7 @@ Backend endpoints are taken from the companion documentation page `src/app/docs/
 | `/services/new`               | Create service                               | `POST /api/v1/services`                                                                                                                           |
 | `/settings`                   | User/app settings (theme configuration and Connection section displaying the resolved API base URL) | _(static UI settings surface)_                                                                                                                    |
 | `/stats`                      | Statistics — see [docs/stats-page.md](docs/stats-page.md) | `GET /api/v1/stats`, polled every 5s via `usePolling`                                                                 |
+| `/transactions`               | Transactions list with empty/error/retry states — see [docs/transactions-page.md](docs/transactions-page.md) | `GET /api/v1/transactions`                                                                 |
 | `/usage`                      | Usage totals & settlement workflow           | `POST /api/v1/usage`, `GET /api/v1/usage/:agent/:serviceId`, `POST /api/v1/settle`                                                                |
 | `/webhooks`                   | Webhooks management                          | _(calls webhooks endpoints in code)_ and displays each webhook registration time relatively with an absolute timestamp tooltip                    |
 
@@ -400,6 +402,8 @@ The `/events` page renders server-supplied JSON payloads with performance safegu
 - **Per-payload cap:** Each payload is serialised through `safeStringify` (`src/lib/format.ts`) with a hard cap (`EVENT_PAYLOAD_MAX_CHARS`, default 5,000 chars) and a visible `…(truncated)` marker. Circular references, `BigInt`, functions, and malformed timestamps are replaced with safe sentinels so a bad payload can't crash the page.
 - **Render count cap:** The list is capped at 100 rendered rows (`MAX_RENDERED_ROWS`) to keep the DOM bounded, regardless of the backend `limit`. When the filtered list exceeds the cap, a "Showing first 100 of N events." note appears above the list.
 - **Stable filtering:** The `useMemo` filter dependencies are minimal (`items`, `debouncedQuery`), so background polling does not trigger unnecessary re-renders when the underlying data is unchanged.
+
+For component-level contract details, see [docs/activity.md](docs/activity.md).
 
 ## Changelog empty state
 

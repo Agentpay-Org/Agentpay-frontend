@@ -5,13 +5,14 @@ import { ErrorMessage } from "@/components/ErrorMessage";
 import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
 import { SearchBar } from "@/components/SearchBar";
-import { TimeAgo } from "@/components/TimeAgo";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
 import { MAX_RENDERED_ROWS, safeFormatTimestamp, safeStringify } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
 
-type AppEvent = {
+import { Activity } from "./Activity";
+
+export type AppEvent = {
   id: string;
   ts: number | string | null;
   type: string;
@@ -24,7 +25,6 @@ type EventsResponse = {
 };
 
 const EVENT_POLL_INTERVAL_MS = 5000;
-const MAX_RENDERED_EVENTS = 50;
 const CSV_HEADERS = ["id", "timestamp", "type", "payload"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -268,7 +268,7 @@ export default function EventsPage() {
         </p>
       </div>
 
-      <ErrorMessage title="Failed to load events" detail={error} />
+      {error && <ErrorMessage title="Failed to load events" detail={error} />}
 
       {loading && !error && (
         <div role="status" aria-busy="true" className="flex justify-center py-10">
@@ -302,38 +302,9 @@ export default function EventsPage() {
             </p>
           )}
           <ol className="flex flex-col gap-3 text-sm">
-            {renderedItems!.map((event, index) => {
-              const timestamp = safeFormatTimestamp(event.ts);
-              const numericTs =
-                typeof event.ts === "number"
-                  ? event.ts
-                  : typeof event.ts === "string"
-                    ? Number(event.ts)
-                    : Number.NaN;
-              const hasValidTs = Number.isFinite(numericTs);
-
-              return (
-                <li
-                  key={`${index}-${event.id}`}
-                  className="rounded border border-zinc-200 p-3 dark:border-zinc-800"
-                >
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-                    <span className="break-all font-mono text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300">
-                      {event.type}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      <time dateTime={timestamp} title={timestamp}>
-                        {timestamp}
-                      </time>
-                      {hasValidTs && <TimeAgo ts={numericTs} />}
-                    </div>
-                  </div>
-                  <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-zinc-50 p-3 font-mono text-xs text-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-                    {safeStringify(event.payload)}
-                  </pre>
-                </li>
-              );
-            })}
+            {renderedItems!.map((event, index) => (
+              <Activity key={`${index}-${event.id}`} event={event} />
+            ))}
           </ol>
         </>
       )}

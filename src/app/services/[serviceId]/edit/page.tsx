@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet, apiPatch } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
 import { Spinner } from "@/components/Spinner";
@@ -46,7 +47,7 @@ export default function EditServicePage({
         setPrice(prefilled);
         setOriginalPrice(prefilled);
       } catch (e) {
-        setPrefillError((e as Error).message);
+        setPrefillError(mapApiError(e).message);
       } finally {
         setPrefillLoading(false);
       }
@@ -94,7 +95,7 @@ export default function EditServicePage({
       toast.push("Price updated.", "info");
       router.push(`/services/${encodeURIComponent(serviceId)}`);
     } catch (err) {
-      setError((err as Error).message);
+      setError(mapApiError(err).message);
     } finally {
       setSaving(false);
     }

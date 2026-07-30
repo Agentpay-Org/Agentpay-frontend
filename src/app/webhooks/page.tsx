@@ -3,6 +3,7 @@
 import { PageShell } from "@/components/PageShell";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -21,13 +22,13 @@ export default function WebhooksPage() {
   const load = () =>
     apiGet<{ items: Webhook[] }>("/api/v1/webhooks")
       .then((b) => setItems(b.items))
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(mapApiError(e).message));
 
   useEffect(() => {
     let cancelled = false;
     apiGet<{ items: Webhook[] }>("/api/v1/webhooks")
       .then((b) => { if (!cancelled) setItems(b.items); })
-      .catch((e) => { if (!cancelled) setError(e.message); });
+      .catch((e) => { if (!cancelled) setError(mapApiError(e).message); });
     return () => { cancelled = true; };
   }, []);
 
@@ -43,7 +44,7 @@ export default function WebhooksPage() {
       setUrl("");
       await load();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mapApiError(err).message);
     }
   };
 
@@ -52,7 +53,7 @@ export default function WebhooksPage() {
       await apiDelete(`/api/v1/webhooks/${id}`);
       await load();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mapApiError(err).message);
     }
   };
 

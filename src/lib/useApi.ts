@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { apiGet, ApiRateLimitedError, ApiTimeoutError } from "./apiClient";
+import { mapApiError } from "./mapApiError";
 
 export type ApiErrorKind = "timeout" | "rate_limited" | "generic";
 
@@ -102,9 +103,7 @@ export function useApi<T>(path: string | null): State<T> {
             : "generic";
         const errorMsg = isTimeout
           ? "Request timed out. Please try again."
-          : isRateLimited
-            ? (e as Error).message ?? "Rate limited"
-            : (e as Error).message ?? "failed to load";
+          : mapApiError(e, isRateLimited ? "Rate limited" : "failed to load").message;
 
         dispatch({
           status: "error",

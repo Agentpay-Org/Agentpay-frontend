@@ -3,6 +3,7 @@
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/ToastProvider";
 import { useState, useMemo } from "react";
+import { mapApiError } from "@/lib/mapApiError";
 
 type ExportFormat = "json" | "csv";
 
@@ -105,7 +106,7 @@ export function ExportActions({ apiBase }: Props) {
       URL.revokeObjectURL(blobUrl);
       toast.push(`${format.toUpperCase()} export downloaded.`, "info");
     } catch (err) {
-      setError((err as Error).message || "Export failed");
+      setError(mapApiError(err, "Export failed").message);
     } finally {
       setDownloading(null);
     }

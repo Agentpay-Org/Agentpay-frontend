@@ -6,6 +6,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { SearchBar } from "@/components/SearchBar";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
 import { EmptyState } from "@/components/EmptyState";
@@ -108,7 +109,7 @@ export default function SearchPage() {
         if (!isCurrentRequest()) return;
         dispatchSearch({
           type: "error",
-          error: (e as Error).message || "Search failed",
+          error: mapApiError(e, "Search failed").message,
         });
       });
 

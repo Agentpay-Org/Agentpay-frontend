@@ -3,6 +3,7 @@
 import { PageShell } from "@/components/PageShell";
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyButton } from "@/components/CopyButton";
@@ -98,6 +99,7 @@ export default function ApiKeysPage() {
   );
 
   const items = fetchState.status === "ok" ? fetchState.items : null;
+  const error = fetchState.status === "error" ? fetchState.message : null;
   const tableData = useMemo(() => items ?? [], [items]);
 
   const load = useCallback(
@@ -107,7 +109,7 @@ export default function ApiKeysPage() {
         // shows the empty state instead of rendering blank.
         .then((b) => setFetchState({ status: "ok", items: b.items ?? [] }))
         .catch((e: Error) =>
-          setFetchState({ status: "error", message: e.message })
+          setFetchState({ status: "error", message: mapApiError(e).message })
         ),
     []
   );
@@ -132,7 +134,7 @@ export default function ApiKeysPage() {
       setLabel("");
       await load();
     } catch (err) {
-      setActionError((err as Error).message);
+      setActionError(mapApiError(err).message);
     }
   };
 
@@ -142,7 +144,7 @@ export default function ApiKeysPage() {
       await apiDelete(`/api/v1/api-keys/${prefix}`);
       await load();
     } catch (err) {
-      setActionError((err as Error).message);
+      setActionError(mapApiError(err).message);
     }
   };
 

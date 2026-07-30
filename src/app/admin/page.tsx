@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { apiPost } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { AlertError } from "@/components/AlertError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
@@ -98,7 +99,7 @@ export default function AdminPage() {
       toast.push("Admin pause toggle applied.", "info");
       await refreshAfterAction();
     } catch (e) {
-      const message = (e as Error).message;
+      const message = mapApiError(e).message;
       setActionError(message);
       toast.push(message, "error");
     } finally {

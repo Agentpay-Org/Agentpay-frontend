@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, use, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
@@ -61,7 +62,7 @@ function ServiceAgentsContent({
       })
       .catch((e: Error) => {
         if (cancelled) return;
-        setError(e.message ?? "failed to load");
+        setError(mapApiError(e, "failed to load").message);
         setPageCount(1);
       })
       .finally(() => {

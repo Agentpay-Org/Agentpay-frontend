@@ -7,6 +7,7 @@ import { PageShell } from "@/components/PageShell";
 import { SearchBar } from "@/components/SearchBar";
 import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { MAX_RENDERED_ROWS, safeFormatTimestamp, safeStringify } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
 
@@ -189,7 +190,7 @@ export default function EventsPage() {
         })
         .catch((e: unknown) => {
           if (cancelled) return;
-          const message = e instanceof Error ? e.message : "Failed to load events";
+          const message = mapApiError(e, "Failed to load events").message;
           setError(message);
           setItems([]);
         })

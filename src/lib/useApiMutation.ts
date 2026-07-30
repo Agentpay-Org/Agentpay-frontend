@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mapApiError } from "./mapApiError";
 
 export type MutationStatus = "idle" | "pending" | "success" | "error";
 
@@ -96,10 +97,7 @@ export function useApiMutation<TData, TVariables = void>(
         throw err;
       }
 
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "failed to mutate";
+      const message = mapApiError(err, "failed to mutate").message;
       const normalized = err instanceof Error ? err : new Error(message);
 
       setStatus("error");

@@ -4,8 +4,8 @@ import { ErrorMessage } from "@/components/ErrorMessage";
 import { Spinner } from "@/components/Spinner";
 import { PageShell } from "@/components/PageShell";
 import { TextField } from "@/components/TextField";
-import type { ApiError } from "@/lib/apiClient";
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
@@ -26,24 +26,7 @@ type QueryStatus =
   | { kind: "ok"; result: QueryResult | null }
   | { kind: "error"; message: string; requestId?: string };
 
-function describeError(error: unknown): {
-  message: string;
-  requestId?: string;
-} {
-  const apiError = error as Partial<ApiError> | null | undefined;
-  return {
-    message:
-      typeof apiError?.message === "string" && apiError.message.length > 0
-        ? apiError.message
-        : error instanceof Error
-          ? error.message
-          : "request failed",
-    requestId:
-      typeof apiError?.requestId === "string" && apiError.requestId.length > 0
-        ? apiError.requestId
-        : undefined,
-  };
-}
+
 
 export default function UsagePage() {
   const [agent, setAgent] = useState("");
@@ -84,7 +67,7 @@ export default function UsagePage() {
       setStartDate(toISODate(range.start()));
       setEndDate(toISODate(range.end()));
     }
-  }, []);
+  };
 
   const onStartDateChange = useCallback((value: string) => {
     setStartDate(value);
@@ -123,7 +106,7 @@ export default function UsagePage() {
       });
       setStatus({ kind: "ok", total: body?.total });
     } catch (error) {
-      const { message, requestId } = describeError(error);
+      const { message, requestId } = mapApiError(error);
       setStatus({ kind: "error", message, requestId });
     }
   };
@@ -154,7 +137,7 @@ export default function UsagePage() {
       );
       setQueryResult({ kind: "ok", result: result ?? null });
     } catch (error) {
-      const { message, requestId } = describeError(error);
+      const { message, requestId } = mapApiError(error);
       setQueryResult({ kind: "error", message, requestId });
     }
   };

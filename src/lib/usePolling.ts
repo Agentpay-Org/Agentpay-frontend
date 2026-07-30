@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import { apiGet } from "./apiClient";
+import { mapApiError } from "./mapApiError";
 
 export type PollingStatus = "loading" | "error" | "ok";
 
@@ -31,11 +32,7 @@ export type UsePollingOptions = {
   initialPaused?: boolean;
 };
 
-function errorMessage(error: unknown) {
-  return error instanceof Error && error.message.length > 0
-    ? error.message
-    : "failed to load";
-}
+
 
 function reducer<T>(state: StoredState<T>, action: Action<T>): StoredState<T> {
   switch (action.type) {
@@ -117,7 +114,7 @@ export function usePolling<T>(
       })
       .catch((error) => {
         if (mountedRef.current && requestId === requestIdRef.current) {
-          dispatch({ type: "error", error: errorMessage(error) });
+          dispatch({ type: "error", error: mapApiError(error, "failed to load").message });
         }
       })
       .finally(() => {

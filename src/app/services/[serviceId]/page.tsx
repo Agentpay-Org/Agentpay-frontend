@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { Badge } from "@/components/Badge";
 import { CopyButton } from "@/components/CopyButton";
@@ -28,7 +29,7 @@ export default function ServiceDetailPage({
     let cancelled = false;
     apiGet<Service>(`/api/v1/services/${encodeURIComponent(serviceId)}`)
       .then((s) => { if (!cancelled) setService(s); })
-      .catch((e) => { if (!cancelled) setError(e.message); });
+      .catch((e) => { if (!cancelled) setError(mapApiError(e).message); });
     apiGet<Rollup>(`/api/v1/services/${encodeURIComponent(serviceId)}/usage`)
       .then((r) => { if (!cancelled) setRollup(r); })
       .catch(() => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { AlertError } from "@/components/AlertError";
 import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
@@ -78,7 +79,7 @@ export default function AgentsPage() {
       })
       .catch((e: Error) => {
         if (cancelled) return;
-        setError(e.message ?? "failed to load");
+        setError(mapApiError(e, "failed to load").message);
         setPageCount(1);
       })
       .finally(() => {

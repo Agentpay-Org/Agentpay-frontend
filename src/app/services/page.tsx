@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/apiClient";
+import { mapApiError } from "@/lib/mapApiError";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { EmptyState } from "@/components/EmptyState";
 import { PageShell } from "@/components/PageShell";
@@ -240,7 +241,7 @@ export default function ServicesPage() {
       })
       .catch((e) => {
         if (cancelled) return;
-        setError(e.message ?? "failed to load");
+        setError(mapApiError(e, "failed to load").message);
         setPageCount(1);
       })
       .finally(() => {

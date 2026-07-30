@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UsagePage from "./page";
 import { apiGet, apiPost } from "@/lib/apiClient";
 
@@ -880,6 +880,120 @@ describe("Date range presets", () => {
         target: { value: "" },
       });
       expect(liveRegion).toHaveTextContent("Showing usage up to 2026-07-15.");
+    });
+  });
+
+  describe("Polite live-region announcements", () => {
+    function runQuery() {
+      fireEvent.change(screen.getAllByLabelText(/^Agent$/i)[1], {
+        target: { value: "a" },
+      });
+      fireEvent.change(
+        screen.getByLabelText(/^Service ID$/i, {
+          selector: 'input[name="queryServiceId"]',
+        }),
+        { target: { value: "s" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Query/i }));
+    }
+
+    function settle() {
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+    }
+
+    it("mounts an empty polite live region so later changes are announced", () => {
+      render(<UsagePage />);
+
+      const announcer = screen.getByTestId("usage-announcer");
+      expect(announcer).toHaveAttribute("aria-live", "polite");
+      expect(announcer).toHaveAttribute("aria-atomic", "true");
+      expect(announcer).toHaveClass("sr-only");
+      expect(announcer).toBeEmptyDOMElement();
+
+      settle();
+      expect(screen.getByTestId("usage-announcer")).toBeEmptyDOMElement();
+    });
+
+    it("does not announce the first query result (baseline)", async () => {
+      apiGetMock.mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 12 });
+      render(<UsagePage />);
+      runQuery();
+
+      await waitFor(() => {
+        expect(screen.getByText("12", { selector: "strong" })).toBeInTheDocument();
+      });
+      settle();
+      expect(screen.getByTestId("usage-announcer")).toBeEmptyDOMElement();
+    });
+
+    it("announces the total when a later query changes it", async () => {
+      apiGetMock
+        .mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 12 })
+        .mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 30 });
+      render(<UsagePage />);
+
+      runQuery();
+      await waitFor(() => {
+        expect(screen.getByText("12", { selector: "strong" })).toBeInTheDocument();
+      });
+      settle();
+
+      runQuery();
+      await waitFor(() => {
+        expect(screen.getByText("30", { selector: "strong" })).toBeInTheDocument();
+      });
+      settle();
+
+      expect(screen.getByTestId("usage-announcer")).toHaveTextContent(
+        "Usage total: 30 requests",
+      );
+    });
+
+    it("announces zero results when a query returns no payload", async () => {
+      apiGetMock
+        .mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 12 })
+        .mockResolvedValueOnce(null as never);
+      render(<UsagePage />);
+
+      runQuery();
+      await waitFor(() => {
+        expect(screen.getByText("12", { selector: "strong" })).toBeInTheDocument();
+      });
+      settle();
+
+      runQuery();
+      await waitFor(() => {
+        expect(screen.getByTestId("usage-announcer")).toHaveTextContent(
+          "No usage data found",
+        );
+      });
+      expect(
+        screen.queryByText("12", { selector: "strong" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the live region silent when a query fails", async () => {
+      apiGetMock
+        .mockResolvedValueOnce({ agent: "a", serviceId: "s", total: 12 })
+        .mockRejectedValueOnce(new Error("query blew up"));
+      render(<UsagePage />);
+
+      runQuery();
+      await waitFor(() => {
+        expect(screen.getByText("12", { selector: "strong" })).toBeInTheDocument();
+      });
+      settle();
+
+      runQuery();
+      // ErrorMessage's role="alert" already announces the failure.
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent("Query failed");
+      });
+      settle();
+
+      expect(screen.getByTestId("usage-announcer")).toBeEmptyDOMElement();
     });
   });
 });

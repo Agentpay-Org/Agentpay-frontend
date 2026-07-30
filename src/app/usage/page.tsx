@@ -10,6 +10,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
 import { validateIdentifier } from "@/lib/validateId";
+import { useUsageAnnouncement } from "./useUsageAnnouncement";
 
 type PresetKey = "24h" | "7d" | "30d" | "custom";
 
@@ -103,6 +104,8 @@ export default function UsagePage() {
     return `Showing ${PRESET_RANGES[activePreset].label}.`;
   }, [activePreset, startDate, endDate]);
 
+  const queryAnnouncement = useUsageAnnouncement(queryResult);
+
   const applyPreset = (key: PresetKey) => {
     setActivePreset(key);
     if (key === "custom") {
@@ -190,6 +193,22 @@ export default function UsagePage() {
           Record per-request usage for an agent and query the running total.
         </p>
       </header>
+
+      {/*
+       * Debounced usage announcements for assistive tech. The region is mounted
+       * empty (so screen readers register it before the first change) and only
+       * subsequent meaningful total/empty changes are announced. Deliberately
+       * not role="status": the query result and date-range hint already own that
+       * role, and a third one would make the page's status ambiguous.
+       */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="usage-announcer"
+      >
+        {queryAnnouncement}
+      </span>
 
       <section aria-labelledby="record-heading" className="flex flex-col gap-4">
         <h2 id="record-heading" className="text-xl font-medium">

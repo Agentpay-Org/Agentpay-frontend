@@ -41,10 +41,7 @@ const config: Config = {
     "./src/app/docs/page.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/app/settings/page.tsx": { statements: 100, branches: 95, functions: 100, lines: 100 },
     "./src/app/docs/DocsFilter.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
-    // Extracted usage modules — fully covered by their own unit tests.
-    "./src/app/usage/dateRange.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
-    "./src/app/usage/UsageQueryRows.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
-    "./src/app/usage/UsageDateRangeFilters.tsx": { statements: 100, branches: 95, functions: 100, lines: 100 },
+    "./src/app/usage/useUsageAnnouncement.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/components/CurlBlock.tsx": { statements: 100, branches: 100, functions: 100, lines: 100 },
     "./src/lib/apiClient.ts": { statements: 80, branches: 80, functions: 70, lines: 80 },
     "./src/lib/resolveApiBase.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },

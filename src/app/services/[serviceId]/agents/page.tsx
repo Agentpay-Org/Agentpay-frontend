@@ -1,8 +1,9 @@
 "use client";
 
 import { PageShell } from "@/components/PageShell";
-import { useEffect, useMemo, useState, use } from "react";
+import { useEffect, useMemo, useState, use, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { apiGet } from "@/lib/apiClient";
 import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { EmptyState } from "@/components/EmptyState";
@@ -20,47 +21,43 @@ type TopAgents = {
 
 const PAGE_SIZE = 25;
 
-export default function ServiceAgentsPage({
-  params,
+function ServiceAgentsContent({
+  serviceId,
 }: {
-  params: Promise<{ serviceId: string }>;
+  serviceId: string;
 }) {
-  const { serviceId } = use(params);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const page = parseInt(searchParams.get("page") ?? "1", 10);
+  
   const [items, setItems] = useState<TopAgent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [requestedPage, setRequestedPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
 
   const onPageChange = (nextPage: number) => {
-    setLoading(true);
-    setError(null);
-    setItems(null);
-    setRequestedPage(nextPage);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", nextPage.toString());
+    router.push(`?${params.toString()}`);
   };
 
   useEffect(() => {
     let cancelled = false;
-
+    setLoading(true);
+    
     apiGet<TopAgents>(
       `/api/v1/services/${encodeURIComponent(
         serviceId,
-      )}/agents/top?page=${requestedPage}&limit=${PAGE_SIZE}`,
+      )}/agents/top?page=${page}&limit=${PAGE_SIZE}`,
     )
       .then((body) => {
         if (cancelled) return;
 
         const nextItems = body.items ?? body.agents ?? [];
         const nextPageCount = Math.max(body.pageCount ?? 1, 1);
-        const nextPage = Math.min(
-          Math.max(body.page ?? requestedPage, 1),
-          nextPageCount,
-        );
-
+        
         setItems(nextItems);
         setPageCount(nextPageCount);
-        setPage(nextPage);
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -74,7 +71,7 @@ export default function ServiceAgentsPage({
     return () => {
       cancelled = true;
     };
-  }, [requestedPage, serviceId]);
+  }, [page, serviceId]);
 
   const renderedItems = useMemo(() => {
     if (!items) return null;
@@ -85,17 +82,7 @@ export default function ServiceAgentsPage({
   const isTruncated = totalVisible > MAX_RENDERED_ROWS;
 
   return (
-    <PageShell>
-      <Link
-        href={`/services/${encodeURIComponent(serviceId)}`}
-        className="text-sm text-zinc-500 hover:underline"
-      >
-        ← Back to service
-      </Link>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        Top agents{" "}
-        <span className="font-mono text-base text-zinc-500">{serviceId}</span>
-      </h1>
+    <>
       {error && (
         <p role="alert" className="text-sm text-rose-600">
           {error}
@@ -120,33 +107,63 @@ export default function ServiceAgentsPage({
             </p>
           )}
           <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {renderedItems!.map((a, i) => (
-            <li
-              key={a.agent}
-              className="flex items-center justify-between py-3 text-sm"
-            >
-              <span className="flex items-center font-mono">
-                <span className="mr-3 inline-block w-5 text-right text-zinc-500">
-                  {(page - 1) * PAGE_SIZE + i + 1}.
+            {renderedItems!.map((a, i) => (
+              <li
+                key={a.agent}
+                className="flex items-center justify-between py-3 text-sm"
+              >
+                <span className="flex items-center font-mono">
+                  <span className="mr-3 inline-block w-5 text-right text-zinc-500">
+                    {(page - 1) * PAGE_SIZE + i + 1}.
+                  </span>
+                  <Link
+                    href={`/agents/${encodeURIComponent(a.agent)}`}
+                    className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                  >
+                    {a.agent}
+                  </Link>
                 </span>
-                <Link
-                  href={`/agents/${encodeURIComponent(a.agent)}`}
-                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                >
-                  {a.agent}
-                </Link>
-              </span>
-              <span className="text-zinc-700 dark:text-zinc-300">
-                {a.total} requests
-              </span>
-            </li>
-          ))}
-        </ol>
+                <span className="text-zinc-700 dark:text-zinc-300">
+                  {a.total} requests
+                </span>
+              </li>
+            ))}
+          </ol>
         </>
       )}
       {!loading && !error && (
         <Pagination page={page} pageCount={pageCount} onChange={onPageChange} />
       )}
+    </>
+  );
+}
+
+export default function ServiceAgentsPage({
+  params,
+}: {
+  params: Promise<{ serviceId: string }>;
+}) {
+  const { serviceId } = use(params);
+  
+  return (
+    <PageShell>
+      <Link
+        href={`/services/${encodeURIComponent(serviceId)}`}
+        className="text-sm text-zinc-500 hover:underline"
+      >
+        ← Back to service
+      </Link>
+      <h1 className="text-3xl font-semibold tracking-tight">
+        Top agents{" "}
+        <span className="font-mono text-base text-zinc-500">{serviceId}</span>
+      </h1>
+      <Suspense fallback={
+        <div className="flex justify-center py-10">
+          <Spinner label="Loading top agents" />
+        </div>
+      }>
+        <ServiceAgentsContent serviceId={serviceId} />
+      </Suspense>
     </PageShell>
   );
 }

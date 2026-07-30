@@ -156,7 +156,9 @@ describe("ServiceAgentsPage", () => {
         );
     });
     
-    expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+    });
     expect(screen.getByText("26.")).toBeInTheDocument();
   });
 

@@ -10,14 +10,7 @@ import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
 import { validateIdentifier } from "@/lib/validateId";
-import {
-  PRESET_RANGES,
-  buildDateRangeAnnouncement,
-  toISODate,
-  type PresetKey,
-} from "./dateRange";
-import { UsageDateRangeFilters } from "./UsageDateRangeFilters";
-import { UsageQueryRows, deriveUsageRows, type UsageRow } from "./UsageQueryRows";
+import { useUsageAnnouncement } from "./useUsageAnnouncement";
 
 type QueryResult = UsageRow;
 
@@ -79,19 +72,9 @@ export default function UsagePage() {
     [activePreset, startDate, endDate],
   );
 
-  // Derived query rows. The memo keeps the array identity stable across
-  // unrelated re-renders so the memoized rows component can bail out.
-  const queryRows = useMemo(
-    () =>
-      deriveUsageRows(
-        queryResult.kind === "ok" ? queryResult.result : null,
-      ),
-    [queryResult],
-  );
+  const queryAnnouncement = useUsageAnnouncement(queryResult);
 
-  // Stable callbacks: without these, every keystroke elsewhere on the page
-  // would hand the memoized filter component fresh props and defeat the memo.
-  const applyPreset = useCallback((key: PresetKey) => {
+  const applyPreset = (key: PresetKey) => {
     setActivePreset(key);
     if (key === "custom") {
       setStartDate("");
@@ -186,6 +169,22 @@ export default function UsagePage() {
           Record per-request usage for an agent and query the running total.
         </p>
       </header>
+
+      {/*
+       * Debounced usage announcements for assistive tech. The region is mounted
+       * empty (so screen readers register it before the first change) and only
+       * subsequent meaningful total/empty changes are announced. Deliberately
+       * not role="status": the query result and date-range hint already own that
+       * role, and a third one would make the page's status ambiguous.
+       */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="usage-announcer"
+      >
+        {queryAnnouncement}
+      </span>
 
       <section aria-labelledby="record-heading" className="flex flex-col gap-4">
         <h2 id="record-heading" className="text-xl font-medium">

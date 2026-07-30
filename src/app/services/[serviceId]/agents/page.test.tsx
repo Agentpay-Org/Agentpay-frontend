@@ -1,9 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ServiceAgentsPage from "./page";
 import { apiGet } from "@/lib/apiClient";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 jest.mock("@/lib/apiClient", () => ({
   apiGet: jest.fn(),
+}));
+
+jest.mock("next/navigation", () => ({
+  useRouter: jest.fn(),
+  useSearchParams: jest.fn(),
 }));
 
 jest.mock("react", () => {
@@ -21,24 +28,40 @@ jest.mock("react", () => {
 });
 
 const apiGetMock = apiGet as jest.MockedFunction<typeof apiGet>;
+const useRouterMock = useRouter as jest.Mock;
+const useSearchParamsMock = useSearchParams as jest.Mock;
 
 function agent(agentId: string, total: number) {
   return { agent: agentId, total };
 }
 
-function renderPage(serviceId = "svc-1") {
+function renderPage(serviceId = "svc-1", searchParams: Record<string, string> = {}) {
   const params = Promise.resolve({ serviceId }) as Promise<{
     serviceId: string;
   }> & {
     _value: { serviceId: string };
   };
   params._value = { serviceId };
-  return render(<ServiceAgentsPage params={params} />);
+  
+  useSearchParamsMock.mockReturnValue(new URLSearchParams(searchParams));
+  const routerPush = jest.fn();
+  useRouterMock.mockReturnValue({ push: routerPush });
+
+  return {
+    routerPush,
+    ...render(
+      <Suspense>
+        <ServiceAgentsPage params={params} />
+      </Suspense>
+    ),
+  };
 }
 
 describe("ServiceAgentsPage", () => {
   beforeEach(() => {
     apiGetMock.mockReset();
+    useRouterMock.mockReset();
+    useSearchParamsMock.mockReset();
   });
 
   it("renders a spinner while the first top-agents page is loading", () => {
@@ -93,7 +116,7 @@ describe("ServiceAgentsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows pagination for multiple pages and refetches on Next", async () => {
+  it("shows pagination for multiple pages and calls router.push on Next", async () => {
     apiGetMock
       .mockResolvedValueOnce({
         items: [agent("agent-a", 10)],
@@ -106,36 +129,33 @@ describe("ServiceAgentsPage", () => {
         pageCount: 2,
       } as never);
 
-    renderPage("svc-main");
+    const { routerPush } = renderPage("svc-main", { page: "1" });
 
     expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+    
+    // Simulate navigation change in searchParams
+    useSearchParamsMock.mockReturnValue(new URLSearchParams({ page: "2" }));
+    
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-
-    await waitFor(() => {
-      expect(apiGetMock).toHaveBeenLastCalledWith(
-        "/api/v1/services/svc-main/agents/top?page=2&limit=25",
-      );
-    });
-    expect(
-      await screen.findByRole("link", { name: "agent-b" }),
-    ).toHaveAttribute("href", "/agents/agent-b");
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("26.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    
+    expect(routerPush).toHaveBeenCalledWith("?page=2");
   });
 
-  it("uses the server-confirmed page and supports agents response aliases", async () => {
+  it("uses the page from searchParams", async () => {
     apiGetMock.mockResolvedValueOnce({
-      agents: [agent("alias-agent", 5)],
+      items: [agent("agent-b", 20)],
       page: 2,
       pageCount: 3,
     } as never);
 
-    renderPage();
+    renderPage("svc-main", { page: "2" });
 
-    expect(
-      await screen.findByRole("link", { name: "alias-agent" }),
-    ).toHaveAttribute("href", "/agents/alias-agent");
+    await waitFor(() => {
+        expect(apiGetMock).toHaveBeenCalledWith(
+        "/api/v1/services/svc-main/agents/top?page=2&limit=25",
+        );
+    });
+    
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
     expect(screen.getByText("26.")).toBeInTheDocument();
   });

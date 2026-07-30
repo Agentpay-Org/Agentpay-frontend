@@ -822,5 +822,87 @@ describe("EventsPage", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("API Error");
     });
   });
+
+  describe("activity state rendering", () => {
+    it("renders loading state correctly", async () => {
+      let resolveFetch: (value: Response) => void = () => {};
+      const fetchPromise = new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+      globalThis.fetch = jest.fn(() => fetchPromise) as unknown as typeof globalThis.fetch;
+      render(<EventsPage />);
+      expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("No events yet.")).not.toBeInTheDocument();
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+      
+      await act(async () => {
+        resolveFetch(jsonResponse({ items: [] }));
+      });
+    });
+
+    it("renders empty state correctly", async () => {
+      let resolveFetch: (value: Response) => void = () => {};
+      const fetchPromise = new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+      globalThis.fetch = jest.fn(() => fetchPromise) as unknown as typeof globalThis.fetch;
+      
+      render(<EventsPage />);
+      
+      await act(async () => {
+        resolveFetch(jsonResponse({ items: [] }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("No events yet.")).toBeInTheDocument();
+      });
+      expect(screen.queryAllByRole("status")).toHaveLength(0);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    });
+
+    it("renders error state correctly", async () => {
+      let rejectFetch: (reason: Error) => void = () => {};
+      const fetchPromise = new Promise<Response>((_, reject) => {
+        rejectFetch = reject;
+      });
+      globalThis.fetch = jest.fn(() => fetchPromise) as unknown as typeof globalThis.fetch;
+      
+      render(<EventsPage />);
+      
+      await act(async () => {
+        rejectFetch(new Error("API Error"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent("API Error");
+      });
+      expect(screen.queryAllByRole("status")).toHaveLength(0);
+      expect(screen.queryByText("No events yet.")).not.toBeInTheDocument();
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    });
+
+    it("renders success state correctly", async () => {
+      let resolveFetch: (value: Response) => void = () => {};
+      const fetchPromise = new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+      globalThis.fetch = jest.fn(() => fetchPromise) as unknown as typeof globalThis.fetch;
+      
+      render(<EventsPage />);
+      
+      await act(async () => {
+        resolveFetch(jsonResponse({ items: FIRST_BATCH }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("payment.created")).toBeInTheDocument();
+      });
+      expect(screen.queryAllByRole("status")).toHaveLength(0);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("No events yet.")).not.toBeInTheDocument();
+    });
+  });
 });
 

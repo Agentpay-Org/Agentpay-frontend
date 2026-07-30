@@ -53,10 +53,12 @@ it("shows an announced empty state when there are no API keys", async () => {
 
   render(<ApiKeysPage />);
 
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "No API keys yet",
-  );
+  // The loading indicator also uses role="status", so wait for the empty state
+  // itself rather than for whichever status region happens to exist first.
+  await screen.findByText("No API keys yet");
+  expect(screen.getByRole("status")).toHaveTextContent("No API keys yet");
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Loading API keys/i)).not.toBeInTheDocument();
 });
 
 it("shows a safe placeholder when a key is missing created-at", async () => {
@@ -342,17 +344,21 @@ it("does not show a copy action when key creation fails", async () => {
 });
 
 it("does not show empty state or data table while loading (loading exclusivity)", () => {
-  let resolve: (val: unknown) => void;
+  let resolve: (val: unknown) => void = () => {};
   globalThis.fetch = jest.fn().mockReturnValue(
     new Promise((res) => {
       resolve = res;
     })
   );
   render(<ApiKeysPage />);
-  
-  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+  // Loading owns the status region; neither the empty state, the error state,
+  // nor the table may render alongside it.
+  expect(screen.getByRole("status")).toHaveTextContent("Loading API keys");
+  expect(screen.queryByText("No API keys yet")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  
+
   resolve({ ok: true, status: 200, json: async () => ({ items: [] }) });
 });
 

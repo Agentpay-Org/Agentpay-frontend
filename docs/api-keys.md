@@ -10,11 +10,14 @@ This is a Next.js route component and accepts no custom React props. It is rende
 
 The component maintains the following internal state to manage the lifecycle of API keys:
 
-- `items`: `KeyItem[] | null` - The list of loaded API keys, or null before the initial load completes.
+- `fetchState`: `FetchState` - The load state of the key list. A single discriminated union, mirroring the `loading | ok | error` vocabulary used by the shared `useApi` / `usePolling` hooks:
+  - `{ status: "loading" }` - a load is in flight.
+  - `{ status: "ok"; items: KeyItem[] }` - the list loaded; `items` may be empty.
+  - `{ status: "error"; message: string }` - the load failed.
 - `label`: `string` - The current input value for a new key's label in the creation form.
 - `created`: `string | null` - The newly created raw key value, which is shown only once upon creation.
 - `showFull`: `boolean` - Toggles whether to reveal the full `created` key value or keep it masked.
-- `error`: `string | null` - The current error message from any failed API interactions (load, create, revoke).
+- `actionError`: `string | null` - The error message from a failed create or revoke. Kept separate from `fetchState` because an action failure annotates an otherwise-usable view rather than replacing it.
 - `pendingRevoke`: `KeyItem | null` - The key currently selected for revocation, used to show the confirmation dialog.
 
 ## Live-region announcements

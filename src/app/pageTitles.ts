@@ -7,7 +7,7 @@ export const pageTitles = {
   stats: "Stats",
   events: "Event log",
   webhooks: "Webhooks",
-  reports: "Reports",
+  onboarding: "Onboarding",
   apiKeys: "API keys",
   search: "Search",
 } as const;

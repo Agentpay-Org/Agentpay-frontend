@@ -8,6 +8,8 @@ import { Spinner } from "@/components/Spinner";
 import { apiGet } from "@/lib/apiClient";
 import { MAX_RENDERED_ROWS } from "@/lib/format";
 import { useDebounce } from "@/lib/useDebounce";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorMessage } from "@/components/ErrorMessage";
 
 type Service = { serviceId: string; priceStroops: number };
 
@@ -44,6 +46,7 @@ export default function SearchPage() {
     loading: false,
     error: null,
   });
+  const [retryCount, setRetryCount] = useState(0);
   const requestId = useRef(0);
   const latestInputRef = useRef("");
   const latestInput = q.trim();
@@ -67,7 +70,8 @@ export default function SearchPage() {
 
   // Derive live region text from items and debounced query
   const liveRegionText = useMemo(() => {
-    if (!query || error || isSearching) return "";
+    if (!query || isSearching) return "";
+    if (error) return `Search failed: ${error}`;
     if (!items) return "";
     const count = items.length;
     return count === 0
@@ -112,7 +116,7 @@ export default function SearchPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [query]);
+  }, [query, retryCount]);
 
   return (
     <PageShell>
@@ -125,15 +129,17 @@ export default function SearchPage() {
         </div>
       )}
       {error && (
-        <p role="alert" className="text-sm text-rose-600">
-          {error}
-        </p>
+        <ErrorMessage
+          title="Search failed"
+          detail={error}
+          onRetry={() => setRetryCount((c) => c + 1)}
+        />
       )}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {liveRegionText}
       </div>
       {!error && visibleItems && visibleItems.length === 0 && (
-        <p className="text-sm text-zinc-500">No matches.</p>
+        <EmptyState title="No matches." description="Try a different search term." />
       )}
       {!error && visibleItems && visibleItems.length > 0 && (
         <>

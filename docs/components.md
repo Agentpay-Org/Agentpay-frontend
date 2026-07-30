@@ -536,6 +536,22 @@ It refreshes every 30 seconds.
 <TimeAgo ts={event.createdAt} />
 ```
 
+### `WalletSummary`
+
+| Prop | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `address` | `string` | yes | Full Stellar wallet address. Public information — never pass a secret/private key. |
+| `balance` | `string` | no | Pre-formatted balance (e.g. `"1,250.00 USDC"`). Renders "Balance unavailable" when omitted. |
+
+Purely presentational: the caller owns fetching and formatting. Renders the
+address truncated via `truncateMiddle` (full address in `title`/`aria-label`
+for assistive tech and hover), a `CopyButton` for the full address, and the
+balance (or its fallback) right-aligned.
+
+```tsx
+<WalletSummary address={agent.walletAddress} balance="1,250.00 USDC" />
+```
+
 ## Formatting Helpers
 
 Formatting helpers live in `src/lib/format.ts` and are plain functions, not

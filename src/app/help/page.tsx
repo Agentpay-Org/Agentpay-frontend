@@ -7,15 +7,30 @@ import { Spinner } from "@/components/Spinner";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeading } from "@/components/PageHeading";
+import { useHelpStatusAnnouncement } from "./useHelpStatusAnnouncement";
 
 type HelpTopic = { id: string; title: string; content: string };
 
 const HelpPage = memo(function HelpPage() {
   const state = useApi<{ topics: HelpTopic[] }>("/api/v1/help");
+  const topicCount = state.status === "ok" ? state.data.topics.length : 0;
+  const statusAnnouncement = useHelpStatusAnnouncement(state.status, topicCount);
 
   return (
     <PageShell>
       <PageHeading title="Help" />
+      {/*
+       * Debounced status announcements for assistive tech. Empty on mount;
+       * only subsequent meaningful success/empty/error changes are announced.
+       */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="help-status-announcer"
+      >
+        {statusAnnouncement}
+      </span>
       <div aria-live="polite">
         {state.status === "loading" && (
           <div className="flex justify-center py-10" data-testid="help-loading">

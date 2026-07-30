@@ -74,7 +74,7 @@ export default function UsagePage() {
     [queryResult],
   );
 
-  const applyPreset = (key: PresetKey) => {
+  const applyPreset = useCallback((key: PresetKey) => {
     setActivePreset(key);
     if (key === "custom") {
       setStartDate("");
@@ -84,7 +84,7 @@ export default function UsagePage() {
       setStartDate(toISODate(range.start()));
       setEndDate(toISODate(range.end()));
     }
-  };
+  }, []);
 
   const onStartDateChange = useCallback((value: string) => {
     setStartDate(value);

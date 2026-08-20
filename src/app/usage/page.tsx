@@ -11,6 +11,18 @@ import { useCallback, useMemo, useState } from "react";
 import { parsePositiveInt } from "@/lib/validateNumber";
 import { validateIdentifier } from "@/lib/validateId";
 import { useUsageAnnouncement } from "./useUsageAnnouncement";
+import {
+  UsageQueryRows,
+  deriveUsageRows,
+  type UsageRow,
+} from "./UsageQueryRows";
+import {
+  PRESET_RANGES,
+  toISODate,
+  buildDateRangeAnnouncement,
+  type PresetKey,
+} from "./dateRange";
+import { UsageDateRangeFilters } from "./UsageDateRangeFilters";
 
 type QueryResult = UsageRow;
 
@@ -74,7 +86,15 @@ export default function UsagePage() {
 
   const queryAnnouncement = useUsageAnnouncement(queryResult);
 
-  const applyPreset = (key: PresetKey) => {
+  const queryRows = useMemo(
+    () =>
+      deriveUsageRows(
+        queryResult.kind === "ok" ? queryResult.result : null,
+      ),
+    [queryResult],
+  );
+
+  const applyPreset = useCallback((key: PresetKey) => {
     setActivePreset(key);
     if (key === "custom") {
       setStartDate("");

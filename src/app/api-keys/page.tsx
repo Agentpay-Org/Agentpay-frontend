@@ -158,7 +158,10 @@ export default function ApiKeysPage() {
   const revealToggleLabel = showFull ? "Hide full API key" : "Show full API key";
   const revealStateMessage = showFull ? "API key is visible" : "API key is hidden";
 
-  const listAnnouncement = useApiKeysAnnouncement(items, error);
+  const listAnnouncement = useApiKeysAnnouncement(
+    items,
+    fetchState.status === "error" ? fetchState.message : null,
+  );
 
   return (
     <PageShell>

@@ -43,6 +43,7 @@ function ServiceAgentsContent({
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading reset before each fetch
     setLoading(true);
     
     apiGet<TopAgents>(

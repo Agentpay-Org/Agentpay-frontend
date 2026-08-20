@@ -10,6 +10,8 @@ export const pageTitles = {
   transactions: "Transactions",
   apiKeys: "API keys",
   search: "Search",
+  onboarding: "Onboarding",
+  reports: "Reports",
 } as const;
 
 export const serviceTitle = (serviceId: string) => `Service ${serviceId}`;

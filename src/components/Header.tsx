@@ -9,16 +9,21 @@ const primaryLinks = [
   { href: "/services", label: "Services" },
   { href: "/agents", label: "Agents" },
   { href: "/usage", label: "Usage" },
-  { href: "/search", label: "Search" },
+  { href: "/stats", label: "Stats" },
+  { href: "/docs", label: "Docs" },
 ];
 
 const secondaryLinks = [
   { href: "/api-keys", label: "API Keys" },
   { href: "/webhooks", label: "Webhooks" },
   { href: "/events", label: "Events" },
-  { href: "/stats", label: "Stats" },
+  { href: "/search", label: "Search" },
+  { href: "/transactions", label: "Transactions" },
+  { href: "/reports", label: "Reports" },
+  { href: "/export", label: "Export" },
   { href: "/settings", label: "Settings" },
-  { href: "/docs", label: "Docs" },
+  { href: "/help", label: "Help" },
+  { href: "/about", label: "About" },
   { href: "/admin", label: "Admin" },
 ];
 
@@ -52,7 +57,7 @@ function findLinkLabel(pathname: string): string | null {
 
 const linkClass =
   "rounded px-2 py-1 text-sm hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-zinc-800";
-const activeLinkClass = "font-semibold text-blue-600 dark:text-blue-400";
+const activeLinkClass = "font-semibold text-indigo-600 dark:text-indigo-400";
 
 function MobileNav({
   pathname,
@@ -197,18 +202,19 @@ export function Header() {
   }, [pathname]);
 
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800">
+    <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/80 backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/80">
       <div role="status" aria-live="polite" className="sr-only">
         {routeAnnouncement}
       </div>
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 p-4"
+        className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6"
       >
         <Link
           href="/"
-          className="text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          className="flex items-center gap-2 text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
+          <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-sky-500 text-xs font-bold text-white">AP</span>
           AgentPay
         </Link>
 

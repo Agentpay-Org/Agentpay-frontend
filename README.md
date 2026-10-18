@@ -1,6 +1,25 @@
 # AgentPay Frontend
 
+## Live
+
+| | |
+| --- | --- |
+| Website | https://agentpay-frontend-ashy.vercel.app |
+| Docs | https://agentpay-frontend-ashy.vercel.app/docs |
+| API | https://agentpay-backend-red.vercel.app ([API docs](https://agentpay-backend-red.vercel.app/docs), [health](https://agentpay-backend-red.vercel.app/health)) |
+| Contract (testnet) | [`CAWQI63RISS2AXF2YSH77RQGUMVMXIAJUIDBW4DTVSTYU2L5TLCAMXNU`](https://stellar.expert/explorer/testnet/contract/CAWQI63RISS2AXF2YSH77RQGUMVMXIAJUIDBW4DTVSTYU2L5TLCAMXNU) |
+
 Dashboard and Stellar wallet integration for the AgentPay protocol (machine-to-machine payments on Stellar).
+
+## Deployment
+
+Deployed on Vercel. Build-time configuration (all optional, defaults point at the live testnet stack):
+
+| Variable | Default |
+| --- | --- |
+| `NEXT_PUBLIC_AGENTPAY_API_BASE` | `https://agentpay-backend-red.vercel.app` |
+| `NEXT_PUBLIC_AGENTPAY_CONTRACT_ID` | `CAWQI63RISS2AXF2YSH77RQGUMVMXIAJUIDBW4DTVSTYU2L5TLCAMXNU` |
+| `NEXT_PUBLIC_AGENTPAY_NETWORK` | `testnet` |
 
 ## Overview
 

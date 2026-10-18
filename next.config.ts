@@ -2,11 +2,21 @@ import type { NextConfig } from "next";
 import { defaultSecurityHeaders } from "./src/lib/securityHeaders";
 import { resolveApiBase } from "./src/lib/resolveApiBase";
 
+// Default the public API base to the live backend so production builds work
+// without extra configuration. Override with NEXT_PUBLIC_AGENTPAY_API_BASE.
+if (!process.env.NEXT_PUBLIC_AGENTPAY_API_BASE) {
+  process.env.NEXT_PUBLIC_AGENTPAY_API_BASE =
+    "https://agentpay-backend-red.vercel.app";
+}
+
 // Resolve the API base once at build time so the CSP matches what the client
 // will fetch against at runtime.
 const apiBase = resolveApiBase();
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_AGENTPAY_API_BASE: apiBase,
+  },
   // Apply the security headers to every response served by Next.js. Routes
   // can override individually later, but the baseline locks the dashboard
   // down by default.

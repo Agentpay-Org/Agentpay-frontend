@@ -45,7 +45,13 @@ export function resolveApiBase(opts: ResolveApiBaseOptions = {}): string {
   const isProduction =
     opts.isProduction ?? env.NODE_ENV === "production";
 
-  const raw = env[NEXT_PUBLIC_AGENTPAY_API_BASE_ENV]?.trim();
+  // Read the literal process.env.NEXT_PUBLIC_* expression when no override is
+  // passed so Next.js can inline the value into client and edge bundles.
+  const raw = (
+    opts.env
+      ? env[NEXT_PUBLIC_AGENTPAY_API_BASE_ENV]
+      : process.env.NEXT_PUBLIC_AGENTPAY_API_BASE
+  )?.trim();
   const candidate = raw && raw.length > 0 ? raw : DEFAULT_API_BASE;
 
   let url: URL;

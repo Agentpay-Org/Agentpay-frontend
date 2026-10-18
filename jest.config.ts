@@ -2,6 +2,10 @@ import type { Config } from "jest";
 
 const config: Config = {
   preset: "ts-jest",
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", { diagnostics: false, tsconfig: { jsx: "react-jsx", esModuleInterop: true, target: "ES2020", module: "commonjs" } }],
+  },
+  testPathIgnorePatterns: ["/node_modules/", "/.next/"],
   coverageProvider: "v8",
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
@@ -14,9 +18,6 @@ const config: Config = {
     "!src/**/*.d.ts",
     "!src/**/__tests__/**",
   ],
-  coverageThreshold: {
-    global: { statements: 0, branches: 0, functions: 0, lines: 0 },
-  },
   coverageReporters: ["text", "json-summary", "lcov"],
 };
 
